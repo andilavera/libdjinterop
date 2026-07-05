@@ -54,6 +54,50 @@ playlist_table::playlist_table(std::shared_ptr<onelibrary_context> context) :
 {
 }
 
+int64_t playlist_table::add(const playlist_row& row)
+{
+    const auto parent_id = row.parent_id.value_or(PARENT_ID_NONE);
+
+    int64_t id = 0;
+    context_->db << "SELECT COALESCE(MAX(playlist_id), 0) + 1 FROM playlist" >>
+        id;
+
+    int64_t sequence_number = 0;
+    if (row.sequence_number)
+    {
+        sequence_number = *row.sequence_number;
+    }
+    else
+    {
+        context_->db
+                << "SELECT COALESCE(MAX(sequenceNo), -1) + 1 FROM playlist "
+                   "WHERE playlist_id_parent = ?"
+                << parent_id >>
+            sequence_number;
+    }
+
+    context_->db << "INSERT INTO playlist "
+                    "(playlist_id, sequenceNo, name, image_id, attribute, "
+                    "playlist_id_parent) VALUES (?, ?, ?, 0, 0, ?)"
+                 << id << sequence_number << row.name << parent_id;
+
+    return id;
+}
+
+void playlist_table::update(const playlist_row& row)
+{
+    context_->db << "UPDATE playlist SET name = ?, playlist_id_parent = ?, "
+                    "sequenceNo = ? WHERE playlist_id = ?"
+                 << row.name << row.parent_id.value_or(PARENT_ID_NONE)
+                 << row.sequence_number << row.id;
+}
+
+void playlist_table::remove(int64_t id)
+{
+    context_->db << "DELETE FROM playlist_content WHERE playlist_id = ?" << id;
+    context_->db << "DELETE FROM playlist WHERE playlist_id = ?" << id;
+}
+
 std::optional<playlist_row> playlist_table::get(int64_t id) const
 {
     std::optional<playlist_row> result;
@@ -140,6 +184,34 @@ std::vector<int64_t> playlist_table::track_ids(int64_t id) const
         "SELECT content_id FROM playlist_content WHERE playlist_id = ? "
         "ORDER BY sequenceNo, rowid",
         id);
+}
+
+void playlist_table::add_track(int64_t id, int64_t track_id)
+{
+    int64_t sequence_number = 0;
+    context_->db
+            << "SELECT COALESCE(MAX(sequenceNo), 0) + 1 FROM playlist_content "
+               "WHERE playlist_id = ?"
+            << id >>
+        sequence_number;
+
+    context_->db
+        << "INSERT INTO playlist_content (playlist_id, content_id, sequenceNo) "
+           "VALUES (?, ?, ?)"
+        << id << track_id << sequence_number;
+}
+
+void playlist_table::remove_track(int64_t id, int64_t track_id)
+{
+    context_->db
+        << "DELETE FROM playlist_content WHERE playlist_id = ? AND content_id "
+           "= ?"
+        << id << track_id;
+}
+
+void playlist_table::clear_tracks(int64_t id)
+{
+    context_->db << "DELETE FROM playlist_content WHERE playlist_id = ?" << id;
 }
 
 std::vector<int64_t> playlist_table::playlists_containing(

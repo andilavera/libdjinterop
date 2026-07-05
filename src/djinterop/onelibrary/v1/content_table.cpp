@@ -40,13 +40,15 @@ constexpr const char* album_join = "album ON album.album_id = c.album_id";
 constexpr const char* genre_join = "genre ON genre.genre_id = c.genre_id";
 constexpr const char* label_join = "label ON label.label_id = c.label_id";
 constexpr const char* key_join = "\"key\" ON \"key\".key_id = c.key_id";
+constexpr const char* image_join = "image ON image.image_id = c.image_id";
 
 /// Every column the row structure needs, in the order it reads them back.
 constexpr const char* row_columns =
     "c.content_id, c.title, artist.name, composer.name, album.name, "
     "genre.name, label.name, \"key\".name, c.djComment, c.bpmx100, c.length, "
     "c.trackNo, c.releaseYear, c.rating, c.path, c.fileSize, "
-    "c.bitrate, c.samplingRate, c.analysisDataFilePath, c.color_id";
+    "c.bitrate, c.samplingRate, c.analysisDataFilePath, c.color_id, "
+    "image.path";
 
 std::string row_query()
 {
@@ -54,7 +56,7 @@ std::string row_query()
            "LEFT JOIN " + artist_join + " LEFT JOIN " + composer_join +
            " LEFT JOIN " + album_join + " LEFT JOIN " + genre_join +
            " LEFT JOIN " + label_join + " LEFT JOIN " + key_join +
-           " WHERE c.content_id = ?";
+           " LEFT JOIN " + image_join + " WHERE c.content_id = ?";
 }
 
 /// A query for one column of `content`.
@@ -221,6 +223,28 @@ std::optional<int64_t> key_id_for(
     return id;
 }
 
+/// Upserts an image by path and returns the id.
+std::optional<int64_t> image_id_for(
+    onelibrary_context& context, const std::optional<std::string>& path)
+{
+    if (!path || path->empty())
+        return std::nullopt;
+
+    int64_t id = 0;
+    context.db << "SELECT COALESCE((SELECT image_id FROM image WHERE path = "
+                  "?), 0);"
+               << *path >>
+        id;
+    if (id != 0)
+        return id;
+
+    context.db << "SELECT COALESCE(MAX(image_id), 0) + 1 FROM image;" >> id;
+    context.db << "INSERT INTO image (image_id, path) VALUES (?, ?);" << id
+               << *path;
+
+    return id;
+}
+
 }  // anonymous namespace
 
 content_table::content_table(std::shared_ptr<onelibrary_context> context) :
@@ -247,7 +271,8 @@ std::optional<content_row> content_table::get(int64_t id) const
             std::optional<int64_t> bitrate,
             std::optional<int64_t> sampling_rate,
             std::optional<std::string> analysis_path,
-            std::optional<int64_t> color_id)
+            std::optional<int64_t> color_id,
+            std::optional<std::string> image_path)
     {
         content_row row;
         row.id = row_id;
@@ -271,6 +296,7 @@ std::optional<content_row> content_table::get(int64_t id) const
         row.sampling_rate = sampling_rate;
         row.analysis_path = non_empty(std::move(analysis_path));
         row.color_id = color_id;
+        row.image_path = non_empty(std::move(image_path));
         result = std::move(row);
     };
 

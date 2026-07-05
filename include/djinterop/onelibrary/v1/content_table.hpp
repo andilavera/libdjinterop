@@ -118,6 +118,9 @@ struct content_row
     /// library beside the database numbers them: one for pink, two red, three
     /// orange, four yellow, five green, six aqua, seven blue, eight purple.
     std::optional<int64_t> color_id;
+
+    /// Path of the artwork, relative to the root of the device.
+    std::optional<std::string> image_path;
 };
 
 /// Read access to the `content` table and the lookup tables it references.

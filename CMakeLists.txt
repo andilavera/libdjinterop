@@ -219,6 +219,7 @@ add_library(
     src/djinterop/onelibrary/album_table.cpp
     src/djinterop/onelibrary/reference_tables.cpp
     src/djinterop/onelibrary/content_table.cpp
+    src/djinterop/onelibrary/playlist_table.cpp
 )
 
 set_target_properties(DjInterop PROPERTIES

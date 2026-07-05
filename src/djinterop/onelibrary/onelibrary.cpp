@@ -27,6 +27,7 @@
 #include <djinterop/onelibrary/reference_tables.hpp>
 #include "content_table.hpp"
 #include "onelibrary_context.hpp"
+#include "playlist_table.hpp"
 #include "schema.hpp"
 #include "../util/sqlite_transaction.hpp"
 
@@ -117,7 +118,10 @@ onelibrary::onelibrary(std::shared_ptr<onelibrary_context> context) :
     genre_{std::make_unique<genre_table>(context_)},
     label_{std::make_unique<label_table>(context_)},
     key_{std::make_unique<key_table>(context_)},
-    content_{std::make_unique<content_table>(context_)}
+    content_{std::make_unique<content_table>(context_)},
+    playlist_{std::make_unique<playlist_table>(context_)},
+    playlist_content_{
+        std::make_unique<playlist_content_table>(context_)}
 {
 }
 
@@ -342,8 +346,40 @@ void onelibrary::verify() const
     context_->db << "PRAGMA integrity_check;" >> result;
     if (result != "ok")
     {
-        throw std::runtime_error{"Database integrity check failed: " + result};
+        throw std::runtime_error{
+            "Database integrity check failed: " + result};
     }
+}
+
+int64_t onelibrary::create_playlist(
+    const std::string& name, int64_t parent_id, bool is_folder)
+{
+    playlist_row row;
+    row.name = name;
+    row.parent_id = parent_id;
+    row.attribute = is_folder ? 1 : 0;
+    return playlist_->add(row);
+}
+
+void onelibrary::add_track_to_playlist(
+    int64_t playlist_id, int64_t content_id)
+{
+    playlist_content_->add(playlist_id, content_id);
+}
+
+std::vector<int64_t> onelibrary::root_playlists() const
+{
+    return playlist_->children_of(0);
+}
+
+std::vector<int64_t> onelibrary::playlist_children(int64_t parent_id) const
+{
+    return playlist_->children_of(parent_id);
+}
+
+std::vector<int64_t> onelibrary::playlist_tracks(int64_t playlist_id) const
+{
+    return playlist_content_->tracks_in(playlist_id);
 }
 
 }  // namespace djinterop::onelibrary

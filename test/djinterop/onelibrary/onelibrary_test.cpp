@@ -649,3 +649,56 @@ BOOST_AUTO_TEST_CASE(get_track_by_relative_path__existing__returns_track)
         !lib.get_track_by_relative_path("/Contents/Missing.flac")
              .has_value());
 }
+
+BOOST_TEST_DECORATOR(
+    *utf::description("create_playlist() creates a root playlist"))
+BOOST_AUTO_TEST_CASE(create_playlist__root__creates)
+{
+    temporary_directory tmp_loc;
+    auto lib = onelib::onelibrary::create(tmp_loc.temp_dir);
+
+    auto id = lib.create_playlist("Test Playlist");
+    BOOST_TEST(id > 0);
+
+    auto roots = lib.root_playlists();
+    BOOST_TEST(roots.size() == 1);
+    BOOST_TEST(roots[0] == id);
+}
+
+BOOST_TEST_DECORATOR(
+    *utf::description("add_track_to_playlist() adds track membership"))
+BOOST_AUTO_TEST_CASE(add_track_to_playlist__track__membership)
+{
+    temporary_directory tmp_loc;
+    auto lib = onelib::onelibrary::create(tmp_loc.temp_dir);
+
+    onelib::track_info t;
+    t.title = "T";
+    t.artist = "A";
+    t.relative_path = "/Contents/T.flac";
+    auto tid = lib.add_track(t);
+
+    auto pid = lib.create_playlist("Pl");
+    lib.add_track_to_playlist(pid, tid);
+
+    auto tracks = lib.playlist_tracks(pid);
+    BOOST_TEST(tracks.size() == 1);
+    BOOST_TEST(tracks[0] == tid);
+}
+
+BOOST_TEST_DECORATOR(
+    *utf::description("playlist_children() returns child playlists"))
+BOOST_AUTO_TEST_CASE(playlist_children__nested__ordered)
+{
+    temporary_directory tmp_loc;
+    auto lib = onelib::onelibrary::create(tmp_loc.temp_dir);
+
+    auto folder = lib.create_playlist("Folder", 0, true);
+    auto pl1 = lib.create_playlist("Child 1", folder);
+    auto pl2 = lib.create_playlist("Child 2", folder);
+
+    auto children = lib.playlist_children(folder);
+    BOOST_TEST(children.size() == 2);
+    BOOST_TEST(children[0] == pl1);
+    BOOST_TEST(children[1] == pl2);
+}

@@ -40,6 +40,8 @@ class genre_table;
 class label_table;
 class key_table;
 class content_table;
+class playlist_table;
+class playlist_content_table;
 struct content_row;
 
 /// Known static passphrase for Device Library Plus databases.
@@ -125,6 +127,29 @@ public:
 
     /// Gets a class representing the artist table.
     artist_table artist() const noexcept { return artist_table{context_}; }
+    /// Create a playlist or folder.
+    ///
+    /// \param name Playlist/folder name.
+    /// \param parent_id Parent playlist id (0 = root).
+    /// \param is_folder If true, creates a folder instead of a playlist.
+    /// \return The new playlist_id.
+    int64_t create_playlist(
+        const std::string& name, int64_t parent_id = 0,
+        bool is_folder = false);
+
+    /// Add a track to a playlist.
+    void add_track_to_playlist(int64_t playlist_id, int64_t content_id);
+
+    /// Get root-level playlist ids (ordered by sequenceNo).
+    std::vector<int64_t> root_playlists() const;
+
+    /// Get child playlist ids of a parent (ordered by sequenceNo).
+    std::vector<int64_t> playlist_children(
+        int64_t parent_id) const;
+
+    /// Get the ordered list of track ids in a playlist.
+    std::vector<int64_t> playlist_tracks(
+        int64_t playlist_id) const;
 
     /// Gets a class representing the album table.
     album_table album() const noexcept { return album_table{context_}; }
@@ -148,6 +173,8 @@ private:
     std::unique_ptr<label_table> label_;
     std::unique_ptr<key_table> key_;
     std::unique_ptr<content_table> content_;
+    std::unique_ptr<playlist_table> playlist_;
+    std::unique_ptr<playlist_content_table> playlist_content_;
 };
 
 }  // namespace djinterop::onelibrary

@@ -221,6 +221,7 @@ add_library(
     src/djinterop/onelibrary/content_table.cpp
     src/djinterop/onelibrary/playlist_table.cpp
     src/djinterop/onelibrary/image_table.cpp
+    src/djinterop/onelibrary/anlz/hash.cpp
 )
 
 set_target_properties(DjInterop PROPERTIES
@@ -429,7 +430,8 @@ if (BUILD_EXAMPLES)
         add_executable(example_${example_name} example/${example_name}.cpp)
         target_include_directories(example_${example_name} PUBLIC
                 ${CMAKE_CURRENT_BINARY_DIR}/include
-                include)
+                include
+                src)
         target_link_libraries(example_${example_name} PUBLIC DjInterop)
     endfunction()
 
@@ -458,7 +460,10 @@ if (Boost_FOUND AND Boost_filesystem_FOUND AND Boost_system_FOUND)
         target_include_directories(${test_executable_name} PUBLIC
                 ${Boost_INCLUDE_DIRS}
                 ${CMAKE_CURRENT_BINARY_DIR}/include
-                include)
+include
+                src
+                ext/sqlcipher
+                ext/sqlite_modern_cpp)
         target_link_libraries(${test_executable_name} PUBLIC
                 DjInterop
                 ${Boost_LIBRARIES})
@@ -479,6 +484,9 @@ if (Boost_FOUND AND Boost_filesystem_FOUND AND Boost_system_FOUND)
     add_djinterop_test(engine/v3/ information_table_test)
     add_djinterop_test(engine/v3/ performance_data_table_test)
     add_djinterop_test(engine/v3/ track_table_test)
+add_djinterop_test(onelibrary/ onelibrary_anlz_test)
+    target_sources(onelibrary_onelibrary_anlz_test PRIVATE
+        src/djinterop/onelibrary/anlz/hash.cpp)
     add_djinterop_test(onelibrary/ onelibrary_test)
 
 else()

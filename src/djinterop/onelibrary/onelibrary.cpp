@@ -25,6 +25,7 @@
 #include <djinterop/onelibrary/artist_table.hpp>
 #include <djinterop/onelibrary/album_table.hpp>
 #include <djinterop/onelibrary/reference_tables.hpp>
+#include "anlz/hash.hpp"
 #include "content_table.hpp"
 #include "image_table.hpp"
 #include "onelibrary_context.hpp"
@@ -201,6 +202,13 @@ int64_t onelibrary::add_track(const track_info& track)
     row.bit_depth = track.bit_depth;
     row.sampling_rate = track.sample_rate;
     row.isrc = track.isrc;
+
+    // Compute and set the ANLZ data file path so rekordbox desktop can find
+    // the analysis files (hardware recomputes this from the audio path hash,
+    // but desktop software reads the stored path).
+    auto anlz = anlz::compute_anlz_path(track.relative_path);
+    row.analysis_data_file_path =
+        "/.PIONEER/USBANLZ/" + anlz.to_directory() + "/ANLZ0000.DAT";
 
     // Set dates to now.
     auto now_str = [] {

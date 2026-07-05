@@ -40,6 +40,7 @@ class genre_table;
 class label_table;
 class key_table;
 class content_table;
+class image_table;
 class playlist_table;
 class playlist_content_table;
 struct content_row;
@@ -77,6 +78,7 @@ struct track_info
     std::optional<std::string> isrc;
     std::optional<int64_t> year;
     int64_t rating = 0;                ///< 0-5
+    int64_t image_id = 0;              ///< FK → image, 0 = none
 
     /// Volume-relative path to the audio file, e.g. `/Contents/Track.flac`.
     std::string relative_path;
@@ -162,6 +164,9 @@ public:
 
     /// Gets a class representing the key table.
     key_table key() const noexcept { return key_table{context_}; }
+    /// Add an artwork image and return its id.
+    /// \param path Volume-relative path, e.g. /.PIONEER/Artwork/00001/b1.jpg
+    int64_t add_artwork(const std::string& path);
 
 private:
     explicit onelibrary(std::shared_ptr<onelibrary_context> context);
@@ -175,6 +180,7 @@ private:
     std::unique_ptr<content_table> content_;
     std::unique_ptr<playlist_table> playlist_;
     std::unique_ptr<playlist_content_table> playlist_content_;
+    std::unique_ptr<image_table> image_;
 };
 
 }  // namespace djinterop::onelibrary

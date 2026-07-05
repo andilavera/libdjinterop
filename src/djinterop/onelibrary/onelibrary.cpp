@@ -26,6 +26,7 @@
 #include <djinterop/onelibrary/album_table.hpp>
 #include <djinterop/onelibrary/reference_tables.hpp>
 #include "content_table.hpp"
+#include "image_table.hpp"
 #include "onelibrary_context.hpp"
 #include "playlist_table.hpp"
 #include "schema.hpp"
@@ -121,7 +122,8 @@ onelibrary::onelibrary(std::shared_ptr<onelibrary_context> context) :
     content_{std::make_unique<content_table>(context_)},
     playlist_{std::make_unique<playlist_table>(context_)},
     playlist_content_{
-        std::make_unique<playlist_content_table>(context_)}
+        std::make_unique<playlist_content_table>(context_)},
+    image_{std::make_unique<image_table>(context_)}
 {
 }
 
@@ -189,6 +191,7 @@ int64_t onelibrary::add_track(const track_info& track)
     row.label_id = label_id;
     row.key_id = key_id;
     row.rating = track.rating;
+    row.image_id = track.image_id;
     row.release_year = track.year;
     row.path = track.relative_path;
     row.file_name = file_name;
@@ -233,6 +236,7 @@ std::optional<track_info> onelibrary::get_track(int64_t id) const
     info.isrc = row->isrc;
     info.rating = row->rating;
     info.year = row->release_year;
+    info.image_id = row->image_id;
 
     // Resolve FK names from reference tables.
     auto& db = context_->db;
@@ -307,6 +311,11 @@ std::optional<track_info> onelibrary::get_track(int64_t id) const
 std::vector<int64_t> onelibrary::track_ids() const
 {
     return content_->all_ids();
+}
+
+int64_t onelibrary::add_artwork(const std::string& path)
+{
+    return image_->add(path);
 }
 
 void onelibrary::remove_track(int64_t id)

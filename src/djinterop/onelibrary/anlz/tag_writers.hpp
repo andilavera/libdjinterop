@@ -32,6 +32,14 @@ std::vector<uint8_t> build_ppth_payload(const std::string& utf8_path);
 /// container_type: 0 = memory, 1 = hot.
 std::vector<uint8_t> build_empty_pcob_payload(uint32_t container_type);
 
+/// Build a PCOB container with cue entries.
+/// container_type: 0 = memory, 1 = hot.
+/// cues: vector of (time_ms, loop_time_ms_or_0xFFFFFFFF).
+///   hot_cue index is auto-assigned 1..N (or 0 for memory).
+std::vector<uint8_t> build_pcob_payload(
+    uint32_t container_type,
+    const std::vector<std::pair<uint32_t, uint32_t>>& cues);
+
 /// Build a PQTZ beat grid payload from BPM and track duration.
 /// If bpm <= 0, produces a single-beat placeholder grid.
 /// Internal structure: pad(4) + 0x00080000(4) + count(4) + count×8-byte entries.

@@ -19,6 +19,8 @@
 
 #include <cstdint>
 #include <string>
+#include <utility>
+#include <vector>
 
 namespace djinterop::onelibrary::anlz
 {
@@ -37,6 +39,14 @@ struct anlz_track_data
 
     /// Sample rate in Hz.
     double sample_rate = 44100;
+
+    /// Memory cues: (time_ms, loop_time_ms).
+    /// loop_time_ms = 0xFFFFFFFF means no loop.
+    std::vector<std::pair<uint32_t, uint32_t>> memory_cues;
+
+    /// Hot cues: (time_ms, loop_time_ms).
+    /// loop_time_ms = 0xFFFFFFFF means no loop.
+    std::vector<std::pair<uint32_t, uint32_t>> hot_cues;
 };
 
 /// Write the complete ANLZ file set for a track.

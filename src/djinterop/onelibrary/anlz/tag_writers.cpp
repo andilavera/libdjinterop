@@ -106,6 +106,69 @@ std::vector<uint8_t> build_empty_pcob_payload(uint32_t container_type)
     return payload;
 }
 
+std::vector<uint8_t> build_pcob_payload(
+    uint32_t container_type,
+    const std::vector<std::pair<uint32_t, uint32_t>>& cues)
+{
+    // Container header: type(4) + padding(2) + count(2) + memory_count(4).
+    // Each entry is a PCPT sub-tag: 12-byte sub-header + 44-byte body = 56.
+    constexpr size_t entry_size = 56;
+    uint16_t count = static_cast<uint16_t>(cues.size());
+    size_t payload_size = 12 + count * entry_size;
+    std::vector<uint8_t> payload(payload_size, 0);
+
+    write_u32_be(payload, 0, container_type);  // type
+    // bytes 4-5: padding (0)
+    write_u16_be(payload, 6, count);            // num_cues at correct offset
+    // bytes 8-11: memory_count (0)
+
+    for (size_t i = 0; i < count; ++i)
+    {
+        size_t off = 12 + i * entry_size;
+        auto [time_ms, loop_time_ms] = cues[i];
+        bool is_loop = loop_time_ms != 0xFFFFFFFF;
+        uint32_t hot_cue_idx = container_type == 1
+                                   ? static_cast<uint32_t>(i + 1)
+                                   : 0;
+
+        // PCPT sub-tag header.
+        payload[off] = 'P';
+        payload[off + 1] = 'C';
+        payload[off + 2] = 'P';
+        payload[off + 3] = 'T';
+        write_u32_be(payload, off + 4, 28);  // len_header
+        write_u32_be(payload, off + 8, 56);  // len_entry
+
+        // Body starts at off + 12.
+        size_t b = off + 12;
+        write_u32_be(payload, b, hot_cue_idx);
+        write_u32_be(payload, b + 4, 4);  // status = enabled
+        write_u32_be(payload, b + 8, 0x00010000);
+        // order_first: 0xFFFF for first, 0 for second, then 2,3,...
+        uint16_t of = (i == 0) ? 0xFFFF
+                     : (i == 1) ? 0
+                                : static_cast<uint16_t>(i);
+        write_u16_be(payload, b + 12, of);
+        // order_last: 1,2,3,..., 0xFFFF for last
+        uint16_t ol = (i == static_cast<size_t>(count) - 1)
+                          ? 0xFFFF
+                          : static_cast<uint16_t>(i + 1);
+        write_u16_be(payload, b + 14, ol);
+        payload[b + 16] = is_loop ? 2 : 1;  // type: 1=point, 2=loop
+        // b+17: padding
+        write_u16_be(payload, b + 18, 1000);
+        write_u32_be(payload, b + 20, time_ms);
+        write_u32_be(payload, b + 24, loop_time_ms);
+        // b+28..b+55: 28 bytes padding (already 0)
+    }
+
+    // memory_count: signed int32, equals count for memory, 0 for hot.
+    if (container_type == 0)
+        write_u32_be(payload, 8, count);
+
+    return payload;
+}
+
 // =========================================================================
 // PQTZ — beat grid
 //   pad(4) + 0x00080000(4) + count(4) + count × 8-byte entries

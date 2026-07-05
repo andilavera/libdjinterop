@@ -75,9 +75,22 @@ void write_anlz_files(
         tags.push_back(make_tag("PWAV", 20, build_pwav_payload(400)));
         // PWV2: 100-entry small mono.
         tags.push_back(make_tag("PWV2", 20, build_pwv2_payload(100)));
-        // PCOB: empty hot + memory containers.
-        tags.push_back(make_tag("PCOB", 24, build_empty_pcob_payload(1)));
-        tags.push_back(make_tag("PCOB", 24, build_empty_pcob_payload(0)));
+        // PCOB: hot cues first, then memory cues.
+        if (track.hot_cues.empty())
+            tags.push_back(
+                make_tag("PCOB", 24, build_empty_pcob_payload(1)));
+        else
+            tags.push_back(make_tag(
+                "PCOB", 24,
+                build_pcob_payload(1, track.hot_cues)));
+
+        if (track.memory_cues.empty())
+            tags.push_back(
+                make_tag("PCOB", 24, build_empty_pcob_payload(0)));
+        else
+            tags.push_back(make_tag(
+                "PCOB", 24,
+                build_pcob_payload(0, track.memory_cues)));
 
         write_pmai_file((dir / "ANLZ0000.DAT").string(), tags);
     }

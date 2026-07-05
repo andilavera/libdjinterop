@@ -100,46 +100,75 @@ bool playlist_impl::operator==(const djinterop::playlist_impl& other) const
            other_impl->id_ == id_;
 }
 
-void playlist_impl::add_track_back(const djinterop::track_impl&)
+void playlist_impl::add_track_back(const djinterop::track_impl& tr)
 {
-    read_only();
+    playlist_table{context_}.add_track(id_, tr.id());
 }
 
 void playlist_impl::add_track_after(
-    const djinterop::track_impl&, const djinterop::track_impl&)
+    const djinterop::track_impl& tr, const djinterop::track_impl&)
 {
-    read_only();
+    add_track_back(tr);
 }
 
 void playlist_impl::clear_tracks()
 {
-    read_only();
+    playlist_table{context_}.clear_tracks(id_);
 }
 
-playlist playlist_impl::create_sub_playlist(const std::string&)
+playlist playlist_impl::create_sub_playlist(const std::string& name)
 {
-    read_only();
+    playlist_row row;
+    row.name = name;
+    row.parent_id = id_;
+
+    const auto id = playlist_table{context_}.add(row);
+    return make_playlist(context_, id);
 }
 
 playlist playlist_impl::create_sub_playlist_after(
-    const std::string&, const djinterop::playlist_impl&)
+    const std::string& name, const djinterop::playlist_impl&)
 {
-    read_only();
+    return create_sub_playlist(name);
 }
 
-void playlist_impl::remove_track(const djinterop::track_impl&)
+void playlist_impl::remove_track(const djinterop::track_impl& tr)
 {
-    read_only();
+    playlist_table{context_}.remove_track(id_, tr.id());
 }
 
-void playlist_impl::set_name(const std::string&)
+void playlist_impl::set_name(const std::string& name)
 {
-    read_only();
+    playlist_table table{context_};
+    const auto row = table.get(id_);
+    if (!row)
+        throw playlist_deleted{id_};
+
+    auto updated = *row;
+    updated.name = name;
+    table.update(updated);
 }
 
-void playlist_impl::set_parent(const djinterop::playlist_impl*)
+void playlist_impl::set_parent(
+    const djinterop::playlist_impl* parent_maybe_base)
 {
-    read_only();
+    const auto* parent_maybe =
+        dynamic_cast<const playlist_impl*>(parent_maybe_base);
+    if (parent_maybe && parent_maybe->id_ == id_)
+        throw playlist_invalid_parent{
+            "Cannot set a playlist's parent to itself"};
+
+    playlist_table table{context_};
+    const auto row = table.get(id_);
+    if (!row)
+        throw playlist_deleted{id_};
+
+    auto updated = *row;
+    if (parent_maybe)
+        updated.parent_id = parent_maybe->id_;
+    else
+        updated.parent_id = std::nullopt;
+    table.update(updated);
 }
 
 }  // namespace djinterop::onelibrary::v1

@@ -54,11 +54,20 @@ struct playlist_row
     std::optional<int64_t> sequence_number;
 };
 
-/// Read access to the `playlist` tree and the `playlist_content` membership.
+/// Access to the `playlist` tree and the `playlist_content` membership.
 class DJINTEROP_PUBLIC playlist_table
 {
 public:
     explicit playlist_table(std::shared_ptr<onelibrary_context> context);
+
+    /// Add a playlist row, assigning its id and sibling sequence.
+    int64_t add(const playlist_row& row);
+
+    /// Update a playlist row, which must carry its id.
+    void update(const playlist_row& row);
+
+    /// Remove a playlist row.
+    void remove(int64_t id);
 
     [[nodiscard]] std::optional<playlist_row> get(int64_t id) const;
 
@@ -83,6 +92,15 @@ public:
 
     /// Identifiers of the tracks in a playlist, in playlist order.
     [[nodiscard]] std::vector<int64_t> track_ids(int64_t id) const;
+
+    /// Append a track to a playlist.
+    void add_track(int64_t id, int64_t track_id);
+
+    /// Remove a track from a playlist.
+    void remove_track(int64_t id, int64_t track_id);
+
+    /// Remove every track from a playlist.
+    void clear_tracks(int64_t id);
 
     /// Identifiers of the playlists that hold a given track.
     [[nodiscard]] std::vector<int64_t> playlists_containing(

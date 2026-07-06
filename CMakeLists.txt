@@ -437,6 +437,12 @@ if (BUILD_EXAMPLES)
 
     add_djinterop_example(engine_prime)
     add_djinterop_example(engine_library_v2_low_level)
+    add_djinterop_example(onelibrary_export)
+    target_sources(example_onelibrary_export PRIVATE
+        src/djinterop/onelibrary/anlz/hash.cpp
+        src/djinterop/onelibrary/anlz/pmai_writer.cpp
+        src/djinterop/onelibrary/anlz/tag_writers.cpp
+        src/djinterop/onelibrary/anlz/anlz_writer.cpp)
 endif()
 
 # Unit tests.

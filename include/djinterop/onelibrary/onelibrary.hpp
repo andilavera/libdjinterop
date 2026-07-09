@@ -27,6 +27,7 @@
 
 #include <djinterop/config.hpp>
 
+#include <djinterop/database.hpp>
 #include <djinterop/onelibrary/artist_table.hpp>
 #include <djinterop/onelibrary/album_table.hpp>
 #include <djinterop/onelibrary/reference_tables.hpp>
@@ -44,6 +45,9 @@ class image_table;
 class playlist_table;
 class playlist_content_table;
 struct content_row;
+class database_impl;
+class track_impl;
+class playlist_impl;
 
 /// Known static passphrase for Device Library Plus databases.
 constexpr const char* default_key =
@@ -168,8 +172,32 @@ public:
     /// \param path Volume-relative path, e.g. /.PIONEER/Artwork/00001/b1.jpg
     int64_t add_artwork(const std::string& path);
 
+    /// Delete a playlist and all its track memberships by id.
+    void delete_playlist(int64_t id);
+
+    /// Get the name of a playlist by id.
+    [[nodiscard]] std::string playlist_name(int64_t id) const;
+
+    /// Set the name of a playlist by id.
+    void set_playlist_name(int64_t id, const std::string& name);
+
+    /// Set the parent of a playlist by id.
+    void set_playlist_parent(int64_t id, int64_t parent_id);
+
+    /// Find a playlist by name under a given parent.
+    /// \param parent_id Parent id (0 = root).
+    [[nodiscard]] std::optional<int64_t> find_playlist_by_name(
+        int64_t parent_id, const std::string& name) const;
+
 private:
     explicit onelibrary(std::shared_ptr<onelibrary_context> context);
+
+    /// Internal: access the shared context for high-level API impl classes.
+    friend class database_impl;
+    friend class track_impl;
+    friend class playlist_impl;
+    friend database create_database(const std::string&);
+    friend database load_database(const std::string&);
 
     std::shared_ptr<onelibrary_context> context_;
     std::unique_ptr<artist_table> artist_;

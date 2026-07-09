@@ -222,6 +222,13 @@ add_library(
     src/djinterop/onelibrary/playlist_table.cpp
     src/djinterop/onelibrary/image_table.cpp
     src/djinterop/onelibrary/anlz/hash.cpp
+    src/djinterop/onelibrary/database_impl.cpp
+    src/djinterop/onelibrary/database_impl.hpp
+    src/djinterop/onelibrary/track_impl.cpp
+    src/djinterop/onelibrary/track_impl.hpp
+    src/djinterop/onelibrary/playlist_impl.cpp
+    src/djinterop/onelibrary/playlist_impl.hpp
+    src/djinterop/onelibrary/onelibrary_factory.cpp
 )
 
 set_target_properties(DjInterop PROPERTIES

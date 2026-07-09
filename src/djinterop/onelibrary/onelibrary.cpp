@@ -399,4 +399,51 @@ std::vector<int64_t> onelibrary::playlist_tracks(int64_t playlist_id) const
     return playlist_content_->tracks_in(playlist_id);
 }
 
+void onelibrary::delete_playlist(int64_t id)
+{
+    util::sqlite_transaction trans{context_->db};
+    context_->db
+        << "DELETE FROM playlist_content WHERE playlist_id = ?;" << id;
+    context_->db << "DELETE FROM playlist WHERE playlist_id = ?;" << id;
+    trans.commit();
+}
+
+std::string onelibrary::playlist_name(int64_t id) const
+{
+    std::string name;
+    context_->db
+        << "SELECT name FROM playlist WHERE playlist_id = ?;" << id >> name;
+    return name;
+}
+
+void onelibrary::set_playlist_name(int64_t id, const std::string& name)
+{
+    util::sqlite_transaction trans{context_->db};
+    context_->db
+        << "UPDATE playlist SET name = ? WHERE playlist_id = ?;"
+        << name << id;
+    trans.commit();
+}
+
+void onelibrary::set_playlist_parent(int64_t id, int64_t parent_id)
+{
+    util::sqlite_transaction trans{context_->db};
+    context_->db
+        << "UPDATE playlist SET playlist_id_parent = ? WHERE playlist_id = ?;"
+        << parent_id << id;
+    trans.commit();
+}
+
+std::optional<int64_t> onelibrary::find_playlist_by_name(
+    int64_t parent_id, const std::string& name) const
+{
+    int64_t id = 0;
+    context_->db
+        << "SELECT playlist_id FROM playlist "
+           "WHERE playlist_id_parent = ? AND name = ?;"
+        << parent_id << name >> id;
+    if (id == 0) return std::nullopt;
+    return id;
+}
+
 }  // namespace djinterop::onelibrary

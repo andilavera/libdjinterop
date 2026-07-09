@@ -26,6 +26,7 @@
 #include <djinterop/database.hpp>
 #include <djinterop/engine/engine.hpp>
 #include <djinterop/onelibrary/onelibrary.hpp>
+#include <djinterop/onelibrary/onelibrary_factory.hpp>
 #include <djinterop/exceptions.hpp>
 #include <djinterop/musical_key.hpp>
 #include <djinterop/pad_color.hpp>

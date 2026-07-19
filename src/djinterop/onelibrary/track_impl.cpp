@@ -29,10 +29,12 @@
 #include "../util/filesystem.hpp"
 #include "../util/sqlite_transaction.hpp"
 #include <djinterop/onelibrary/album_table.hpp>
+#include "anlz/anlz_writer.hpp"
 #include "anlz/hash.hpp"
 #include <djinterop/onelibrary/artist_table.hpp>
 #include "content_table.hpp"
 #include "database_impl.hpp"
+#include "key_utils.hpp"
 #include "onelibrary_context.hpp"
 #include <djinterop/onelibrary/reference_tables.hpp>
 
@@ -82,6 +84,16 @@ std::string resolve_label_name(
     return name;
 }
 
+std::optional<musical_key> resolve_key(
+    sqlite::database& db, int64_t key_id)
+{
+    if (key_id <= 0) return std::nullopt;
+    std::string name;
+    db << "SELECT name FROM key WHERE key_id = ?;" << key_id >> name;
+    if (name.empty()) return std::nullopt;
+    return key_name_to_enum(name);
+}
+
 // Convert a content_row to a track_snapshot.
 track_snapshot to_snapshot(
     sqlite::database& db, const content_row& row)
@@ -107,14 +119,13 @@ track_snapshot to_snapshot(
                     ? std::make_optional(static_cast<int>(row.bitrate))
                     : std::nullopt;
     s.sample_rate = row.sampling_rate > 0
-                        ? std::make_optional(
-                              static_cast<double>(row.sampling_rate))
+                        ? std::make_optional(static_cast<double>(row.sampling_rate))
                         : std::nullopt;
     s.sample_count =
         row.sampling_rate > 0 && row.length > 0
-            ? std::make_optional(static_cast<unsigned long long>(
-                  row.sampling_rate) *
-                                  static_cast<unsigned long long>(row.length))
+            ? std::make_optional(
+                  static_cast<unsigned long long>(row.sampling_rate) *
+                      static_cast<unsigned long long>(row.length))
             : std::nullopt;
     s.year = row.release_year
                  ? std::make_optional(static_cast<int>(*row.release_year))
@@ -123,10 +134,9 @@ track_snapshot to_snapshot(
                               : std::nullopt;
     s.file_bytes =
         row.file_size > 0
-            ? std::make_optional(
-                  static_cast<unsigned long long>(row.file_size))
+            ? std::make_optional(static_cast<unsigned long long>(row.file_size))
             : std::nullopt;
-    s.key = std::nullopt;
+    s.key = resolve_key(db, row.key_id);
 
     // ANLZ-only fields are returned empty.
     s.average_loudness = std::nullopt;
@@ -172,6 +182,27 @@ int64_t resolve_or_create_label(
     if (name.empty()) return 0;
     label_table labels{ctx};
     return labels.add(name);
+}
+
+// Convert a track_snapshot to the data needed to write ANLZ files.
+anlz::anlz_track_data to_anlz_data(const track_snapshot& snapshot)
+{
+    return anlz::anlz_track_data{
+        /* .relative_path = */ *snapshot.relative_path,
+        /* .duration_secs = */ snapshot.duration
+            ? static_cast<double>(
+                  duration_cast<milliseconds>(*snapshot.duration)
+                      .count()) /
+                  1000.0
+            : 0.0,
+        /* .sample_rate = */ snapshot.sample_rate.value_or(44100.0),
+        /* .average_loudness = */ snapshot.average_loudness,
+        /* .beatgrid = */ snapshot.beatgrid,
+        /* .hot_cues = */ snapshot.hot_cues,
+        /* .loops = */ snapshot.loops,
+        /* .waveform = */ snapshot.waveform,
+        /* .main_cue = */ snapshot.main_cue,
+    };
 }
 
 }  // anonymous namespace
@@ -256,20 +287,37 @@ void track_impl::update(const track_snapshot& snapshot)
                       ? static_cast<int64_t>(*snapshot.rating / 20)
                       : 0;
 
+    int64_t key_id = 0;
+    if (snapshot.key)
+    {
+        auto* name = musical_key_to_name(*snapshot.key);
+        if (name)
+        {
+            key_table keys{context_};
+            key_id = keys.add(name);
+        }
+    }
+
     context_->db
         << "UPDATE content SET "
            "title = ?, artist_id_artist = ?, album_id = ?, genre_id = ?, "
-           "label_id = ?, artist_id_composer = ?, bpmx100 = ?, length = ?, "
+           "label_id = ?, artist_id_composer = ?, key_id = ?, "
+           "bpmx100 = ?, length = ?, "
            "trackNo = ?, bitrate = ?, samplingRate = ?, fileSize = ?, "
            "releaseYear = ?, rating = ?, path = ?, djComment = ? "
            "WHERE content_id = ?;"
         << (snapshot.title.value_or("")) << artist_id << album_id << genre_id
-        << label_id << composer_id << bpmx100 << length << track_no << bitrate
+        << label_id << composer_id << key_id << bpmx100 << length
+        << track_no << bitrate
         << sampling_rate << file_size << year << rating
         << *snapshot.relative_path
         << (snapshot.comment.value_or("")) << id();
 
     trans.commit();
+
+    // Write ANLZ sidecar files with performance data from the snapshot.
+    anlz::write_anlz_files(
+        context_->directory, to_anlz_data(snapshot));
 }
 
 // Simple field getters/setters — most delegate to snapshot/update.
@@ -300,20 +348,26 @@ void track_impl::set_artist(std::optional<std::string> artist)
 
 std::optional<double> track_impl::average_loudness()
 {
-    return std::nullopt;
+    return snapshot().average_loudness;
 }
 
-void track_impl::set_average_loudness(std::optional<double>)
+void track_impl::set_average_loudness(std::optional<double> loudness)
 {
+    auto s = snapshot();
+    s.average_loudness = std::move(loudness);
+    update(s);
 }
 
 std::vector<beatgrid_marker> track_impl::beatgrid()
 {
-    return {};
+    return snapshot().beatgrid;
 }
 
-void track_impl::set_beatgrid(std::vector<beatgrid_marker>)
+void track_impl::set_beatgrid(std::vector<beatgrid_marker> beatgrid)
 {
+    auto s = snapshot();
+    s.beatgrid = std::move(beatgrid);
+    update(s);
 }
 
 std::optional<int> track_impl::bitrate()
@@ -420,22 +474,35 @@ void track_impl::set_genre(std::optional<std::string> genre)
     update(s);
 }
 
-std::optional<hot_cue> track_impl::hot_cue_at(int)
+std::optional<hot_cue> track_impl::hot_cue_at(int index)
 {
-    return std::nullopt;
+    auto cues = snapshot().hot_cues;
+    if (index < 0 || static_cast<size_t>(index) >= cues.size())
+        return std::nullopt;
+    return cues[static_cast<size_t>(index)];
 }
 
-void track_impl::set_hot_cue_at(int, std::optional<hot_cue>)
+void track_impl::set_hot_cue_at(int index, std::optional<hot_cue> cue)
 {
+    if (index < 0) return;
+    auto s = snapshot();
+    auto idx = static_cast<size_t>(index);
+    if (idx >= s.hot_cues.size())
+        s.hot_cues.resize(idx + 1);
+    s.hot_cues[idx] = std::move(cue);
+    update(s);
 }
 
 std::vector<std::optional<hot_cue>> track_impl::hot_cues()
 {
-    return {};
+    return snapshot().hot_cues;
 }
 
-void track_impl::set_hot_cues(std::vector<std::optional<hot_cue>>)
+void track_impl::set_hot_cues(std::vector<std::optional<hot_cue>> cues)
 {
+    auto s = snapshot();
+    s.hot_cues = std::move(cues);
+    update(s);
 }
 
 bool track_impl::is_valid()
@@ -446,49 +513,82 @@ bool track_impl::is_valid()
 
 std::optional<musical_key> track_impl::key()
 {
-    return std::nullopt;
+    return snapshot().key;
 }
 
-void track_impl::set_key(std::optional<musical_key>)
+void track_impl::set_key(std::optional<musical_key> key)
 {
+    util::sqlite_transaction trans{context_->db};
+    int64_t key_id = 0;
+    if (key)
+    {
+        auto* name = musical_key_to_name(*key);
+        if (name)
+        {
+            key_table keys{context_};
+            key_id = keys.add(name);
+        }
+    }
+    context_->db << "UPDATE content SET key_id = ? WHERE content_id = ?;"
+                 << key_id << id();
+    trans.commit();
 }
 
 std::optional<std::chrono::system_clock::time_point>
 track_impl::last_played_at()
 {
-    return std::nullopt;
+    return snapshot().last_played_at;
 }
 
 void track_impl::set_last_played_at(
-    std::optional<std::chrono::system_clock::time_point>)
+    std::optional<std::chrono::system_clock::time_point> time)
 {
+    auto s = snapshot();
+    s.last_played_at = std::move(time);
+    update(s);
 }
 
-std::optional<loop> track_impl::loop_at(int)
+std::optional<loop> track_impl::loop_at(int index)
 {
-    return std::nullopt;
+    auto lps = snapshot().loops;
+    if (index < 0 || static_cast<size_t>(index) >= lps.size())
+        return std::nullopt;
+    return lps[static_cast<size_t>(index)];
 }
 
-void track_impl::set_loop_at(int, std::optional<loop>)
+void track_impl::set_loop_at(int index, std::optional<loop> l)
 {
+    if (index < 0) return;
+    auto s = snapshot();
+    auto idx = static_cast<size_t>(index);
+    if (idx >= s.loops.size())
+        s.loops.resize(idx + 1);
+    s.loops[idx] = std::move(l);
+    update(s);
 }
 
 std::vector<std::optional<loop>> track_impl::loops()
 {
-    return {};
+    return snapshot().loops;
 }
 
-void track_impl::set_loops(std::vector<std::optional<loop>>)
+void track_impl::set_loops(std::vector<std::optional<loop>> loops)
 {
+    auto s = snapshot();
+    s.loops = std::move(loops);
+    update(s);
 }
 
 std::optional<double> track_impl::main_cue()
 {
-    return std::nullopt;
+    return snapshot().main_cue;
 }
 
-void track_impl::set_main_cue(std::optional<double>)
+void track_impl::set_main_cue(std::optional<double> sample_offset)
 {
+    auto s = snapshot();
+    s.main_cue = std::move(sample_offset);
+    update(s);
 }
 
 std::optional<std::string> track_impl::publisher()
@@ -540,8 +640,11 @@ std::optional<unsigned long long> track_impl::sample_count()
 }
 
 void track_impl::set_sample_count(
-    std::optional<unsigned long long>)
+    std::optional<unsigned long long> sample_count)
 {
+    auto s = snapshot();
+    s.sample_count = std::move(sample_count);
+    update(s);
 }
 
 std::optional<double> track_impl::sample_rate()
@@ -588,11 +691,14 @@ void track_impl::set_track_number(std::optional<int> track_number)
 
 std::vector<waveform_entry> track_impl::waveform()
 {
-    return {};
+    return snapshot().waveform;
 }
 
-void track_impl::set_waveform(std::vector<waveform_entry>)
+void track_impl::set_waveform(std::vector<waveform_entry> waveform)
 {
+    auto s = snapshot();
+    s.waveform = std::move(waveform);
+    update(s);
 }
 
 std::optional<int> track_impl::year()
@@ -749,6 +855,11 @@ track create_track_from_snapshot(
 
     content_table ct{context};
     auto id = ct.add(row);
+
+    // Write ANLZ sidecar files for the new track.
+    anlz::write_anlz_files(
+        context->directory, to_anlz_data(snapshot));
+
     return track{std::make_shared<track_impl>(context, id)};
 }
 

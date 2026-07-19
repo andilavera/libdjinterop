@@ -222,6 +222,11 @@ add_library(
     src/djinterop/onelibrary/playlist_table.cpp
     src/djinterop/onelibrary/image_table.cpp
     src/djinterop/onelibrary/anlz/hash.cpp
+    src/djinterop/onelibrary/anlz/pmai_writer.cpp
+    src/djinterop/onelibrary/anlz/convert.cpp
+    src/djinterop/onelibrary/anlz/tag_writers.cpp
+    src/djinterop/onelibrary/anlz/anlz_writer.cpp
+    src/djinterop/onelibrary/key_utils.cpp
     src/djinterop/onelibrary/database_impl.cpp
     src/djinterop/onelibrary/database_impl.hpp
     src/djinterop/onelibrary/track_impl.cpp
@@ -448,6 +453,7 @@ if (BUILD_EXAMPLES)
     target_sources(example_onelibrary_export PRIVATE
         src/djinterop/onelibrary/anlz/hash.cpp
         src/djinterop/onelibrary/anlz/pmai_writer.cpp
+        src/djinterop/onelibrary/anlz/convert.cpp
         src/djinterop/onelibrary/anlz/tag_writers.cpp
         src/djinterop/onelibrary/anlz/anlz_writer.cpp)
 endif()
@@ -499,7 +505,10 @@ include
     add_djinterop_test(engine/v3/ track_table_test)
 add_djinterop_test(onelibrary/ onelibrary_anlz_test)
     target_sources(onelibrary_onelibrary_anlz_test PRIVATE
-        src/djinterop/onelibrary/anlz/hash.cpp)
+        src/djinterop/onelibrary/anlz/hash.cpp
+        src/djinterop/onelibrary/anlz/convert.cpp
+        src/djinterop/onelibrary/anlz/pmai_writer.cpp
+        src/djinterop/onelibrary/anlz/tag_writers.cpp)
     add_djinterop_test(onelibrary/ onelibrary_test)
 
 else()

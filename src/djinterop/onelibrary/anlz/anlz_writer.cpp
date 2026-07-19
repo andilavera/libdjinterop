@@ -60,37 +60,35 @@ void write_anlz_files(
                anlz_path.to_directory();
     fs::create_directories(dir);
 
-    double dur = track.duration_secs > 0 ? track.duration_secs : 1.0;
+    double sr = track.sample_rate > 0 ? track.sample_rate : 44100.0;
 
     // ---- ANLZ0000.DAT ----
     {
         std::vector<tag_section> tags;
         tags.push_back(make_ppth(track.relative_path));
-        // PVBR: 1608 bytes (4 + 1600 + 4), zeros for lossless.
         tags.push_back(make_tag("PVBR", 16, build_pvbr_payload()));
-        // PQTZ: beat grid with internal header.
         tags.push_back(
-            make_tag("PQTZ", 24, build_pqtz_payload(track.bpm, dur)));
-        // PWAV: 400-entry mono overview.
-        tags.push_back(make_tag("PWAV", 20, build_pwav_payload(400)));
-        // PWV2: 100-entry small mono.
-        tags.push_back(make_tag("PWV2", 20, build_pwv2_payload(100)));
-        // PCOB: hot cues first, then memory cues.
+            make_tag("PQTZ", 24, build_pqtz_payload(track.beatgrid, sr)));
+        tags.push_back(
+            make_tag("PWAV", 20, build_pwav_payload(track.waveform)));
+        tags.push_back(
+            make_tag("PWV2", 20, build_pwv2_payload(track.waveform)));
+
         if (track.hot_cues.empty())
             tags.push_back(
                 make_tag("PCOB", 24, build_empty_pcob_payload(1)));
         else
             tags.push_back(make_tag(
                 "PCOB", 24,
-                build_pcob_payload(1, track.hot_cues)));
+                build_pcob_payload(track.hot_cues, sr)));
 
-        if (track.memory_cues.empty())
+        if (track.loops.empty())
             tags.push_back(
                 make_tag("PCOB", 24, build_empty_pcob_payload(0)));
         else
             tags.push_back(make_tag(
                 "PCOB", 24,
-                build_pcob_payload(0, track.memory_cues)));
+                build_pcob_payload(track.loops, sr)));
 
         write_pmai_file((dir / "ANLZ0000.DAT").string(), tags);
     }
@@ -99,13 +97,12 @@ void write_anlz_files(
     {
         std::vector<tag_section> tags;
         tags.push_back(make_ppth(track.relative_path));
-        // PWV3: colour scroll (~150 entries/sec).
-        tags.push_back(make_tag("PWV3", 24, build_pwv3_payload(dur)));
-        // PWV4: colour preview (~1200 entries).
-        tags.push_back(make_tag("PWV4", 24, build_pwv4_payload(1200)));
-        // PWV5: colour detail (~150 entries/sec).
-        tags.push_back(make_tag("PWV5", 24, build_pwv5_payload(dur)));
-        // PQT2: extended beat grid (empty).
+        tags.push_back(
+            make_tag("PWV3", 24, build_pwv3_payload(track.waveform)));
+        tags.push_back(
+            make_tag("PWV4", 24, build_pwv4_payload(track.waveform)));
+        tags.push_back(
+            make_tag("PWV5", 24, build_pwv5_payload(track.waveform)));
         tags.push_back(
             make_tag("PQT2", 56, build_empty_pqt2_payload()));
 
@@ -116,10 +113,10 @@ void write_anlz_files(
     {
         std::vector<tag_section> tags;
         tags.push_back(make_ppth(track.relative_path));
-        // PWV6: 3-band preview (~1200 entries).
-        tags.push_back(make_tag("PWV6", 20, build_pwv6_payload(1200)));
-        // PWV7: 3-band detail (~150 entries/sec).
-        tags.push_back(make_tag("PWV7", 24, build_pwv7_payload(dur)));
+        tags.push_back(
+            make_tag("PWV6", 20, build_pwv6_payload(track.waveform)));
+        tags.push_back(
+            make_tag("PWV7", 24, build_pwv7_payload(track.waveform)));
 
         write_pmai_file((dir / "ANLZ0000.2EX").string(), tags);
     }

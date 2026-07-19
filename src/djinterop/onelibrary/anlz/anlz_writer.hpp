@@ -18,9 +18,11 @@
 #pragma once
 
 #include <cstdint>
+#include <optional>
 #include <string>
-#include <utility>
 #include <vector>
+
+#include <djinterop/performance_data.hpp>
 
 namespace djinterop::onelibrary::anlz
 {
@@ -31,22 +33,32 @@ struct anlz_track_data
     /// Volume-relative audio path, e.g. `/Contents/Track.flac`.
     std::string relative_path;
 
-    /// Beats per minute (0 if unknown — writes empty beat grid).
-    double bpm = 0;
-
     /// Track duration in seconds.
     double duration_secs = 0;
 
     /// Sample rate in Hz.
     double sample_rate = 44100;
 
-    /// Memory cues: (time_ms, loop_time_ms).
-    /// loop_time_ms = 0xFFFFFFFF means no loop.
-    std::vector<std::pair<uint32_t, uint32_t>> memory_cues;
+    /// Average loudness (LUFS or similar). 0 means unknown.
+    std::optional<double> average_loudness;
 
-    /// Hot cues: (time_ms, loop_time_ms).
-    /// loop_time_ms = 0xFFFFFFFF means no loop.
-    std::vector<std::pair<uint32_t, uint32_t>> hot_cues;
+    /// Beat grid markers (index + sample_offset).
+    /// When empty, an empty beat grid is written.
+    std::vector<beatgrid_marker> beatgrid;
+
+    /// Hot cues (label, sample_offset, colour).
+    /// Indices correspond to hot cue slots 0-7.
+    std::vector<std::optional<hot_cue>> hot_cues;
+
+    /// Loops (label, start/end sample_offset, colour).
+    /// Indices correspond to loop slots 0-7.
+    std::vector<std::optional<loop>> loops;
+
+    /// Waveform data (low/mid/high bands per entry).
+    std::vector<waveform_entry> waveform;
+
+    /// Main cue sample offset.
+    std::optional<double> main_cue;
 };
 
 /// Write the complete ANLZ file set for a track.

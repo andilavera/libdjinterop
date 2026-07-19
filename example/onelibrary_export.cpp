@@ -118,22 +118,49 @@ int main(int argc, char* argv[])
         // Write ANLZ files for the track.
         anlz::anlz_track_data anlz_data;
         anlz_data.relative_path = track.relative_path;
-        anlz_data.bpm = track.bpm;
         anlz_data.duration_secs = track.duration_secs;
         anlz_data.sample_rate = static_cast<double>(track.sample_rate);
 
-        // Add cue points: 4 hot cues + 4 memory cues.
+        // Add a beat grid starting at 0 with the track BPM.
+        {
+            double samples_per_beat = 60.0 / track.bpm * track.sample_rate;
+            anlz_data.beatgrid.push_back(
+                djinterop::beatgrid_marker{0, 0.0});
+            for (int beat = 1; beat <= 100; ++beat)
+            {
+                anlz_data.beatgrid.push_back(
+                    djinterop::beatgrid_marker{
+                        beat, beat * samples_per_beat});
+            }
+        }
+
+        // Add cue points: 4 hot cues + 4 memory cues (loops).
         // Starting at 5 seconds, 1 second apart.
         // Last memory cue is a 2-second loop.
-        constexpr uint32_t kNoLoop = 0xFFFFFFFF;
         for (int i = 0; i < 4; ++i)
         {
-            uint32_t t = 5000 + i * 1000;
-            anlz_data.hot_cues.emplace_back(t, kNoLoop);
+            double sample_offset = (5.0 + i) * track.sample_rate;
+            djinterop::hot_cue hc;
+            hc.label = "Cue " + std::to_string(i + 1);
+            hc.sample_offset = sample_offset;
+            hc.color = djinterop::pad_color{255, 0, 0, 255};
+            anlz_data.hot_cues.push_back(hc);
+
+            djinterop::loop lp;
+            lp.label = "Loop " + std::to_string(i + 1);
+            lp.start_sample_offset = sample_offset;
             if (i == 3)
-                anlz_data.memory_cues.emplace_back(t, t + 2000);  // loop
+            {
+                // 2-second loop.
+                lp.end_sample_offset = sample_offset +
+                    2.0 * track.sample_rate;
+            }
             else
-                anlz_data.memory_cues.emplace_back(t, kNoLoop);
+            {
+                lp.end_sample_offset = sample_offset;
+            }
+            lp.color = djinterop::pad_color{0, 0, 255, 255};
+            anlz_data.loops.push_back(lp);
         }
 
         anlz::write_anlz_files(dir, anlz_data);

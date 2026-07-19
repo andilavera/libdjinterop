@@ -241,6 +241,7 @@ add_library(
     src/djinterop/onelibrary/schema.cpp
     src/djinterop/onelibrary/anlz/hash.cpp
     src/djinterop/onelibrary/anlz/pmai_writer.cpp
+    src/djinterop/onelibrary/anlz/anlz_reader.cpp
     src/djinterop/onelibrary/anlz/convert.cpp
     src/djinterop/onelibrary/anlz/tag_writers.cpp
     src/djinterop/onelibrary/anlz/anlz_writer.cpp
@@ -536,8 +537,9 @@ include
 add_djinterop_test(onelibrary/ onelibrary_anlz_test)
     target_sources(onelibrary_onelibrary_anlz_test PRIVATE
         src/djinterop/onelibrary/anlz/hash.cpp
-        src/djinterop/onelibrary/anlz/convert.cpp
         src/djinterop/onelibrary/anlz/pmai_writer.cpp
+        src/djinterop/onelibrary/anlz/anlz_reader.cpp
+        src/djinterop/onelibrary/anlz/convert.cpp
         src/djinterop/onelibrary/anlz/tag_writers.cpp
         src/djinterop/onelibrary/anlz/anlz_writer.cpp)
 

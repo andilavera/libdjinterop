@@ -96,4 +96,64 @@ std::vector<tag_section> parse_pmai_file(const std::string& path)
     return parse_pmai(data);
 }
 
+const tag_section* find_tag(
+    const std::vector<tag_section>& tags, const std::string& fourcc)
+{
+    for (const auto& tag : tags)
+        if (tag.id == fourcc)
+            return &tag;
+    return nullptr;
+}
+
+std::string read_ppth(const std::vector<uint8_t>& payload)
+{
+    // Payload is UTF-16BE, possibly with a trailing NUL (2 bytes).
+    size_t len = payload.size();
+    // Strip trailing NUL pair if present.
+    if (len >= 2 && payload[len - 2] == 0 && payload[len - 1] == 0)
+        len -= 2;
+
+    std::string result;
+    for (size_t i = 0; i + 1 < len; i += 2)
+    {
+        uint16_t unit = read_u16_be(payload.data(), i);
+        if (unit >= 0xD800 && unit <= 0xDBFF && i + 3 < len)
+        {
+            // High surrogate; read low surrogate.
+            uint16_t lo = read_u16_be(payload.data(), i + 2);
+            if (lo >= 0xDC00 && lo <= 0xDFFF)
+            {
+                uint32_t cp = 0x10000 + ((unit - 0xD800) << 10) +
+                              (lo - 0xDC00);
+                // Encode as 4-byte UTF-8.
+                result.push_back(static_cast<char>(0xF0 | (cp >> 18)));
+                result.push_back(static_cast<char>(
+                    0x80 | ((cp >> 12) & 0x3F)));
+                result.push_back(static_cast<char>(
+                    0x80 | ((cp >> 6) & 0x3F)));
+                result.push_back(static_cast<char>(0x80 | (cp & 0x3F)));
+                i += 2;
+                continue;
+            }
+        }
+        if (unit < 0x80)
+        {
+            result.push_back(static_cast<char>(unit));
+        }
+        else if (unit < 0x800)
+        {
+            result.push_back(static_cast<char>(0xC0 | (unit >> 6)));
+            result.push_back(static_cast<char>(0x80 | (unit & 0x3F)));
+        }
+        else
+        {
+            result.push_back(static_cast<char>(0xE0 | (unit >> 12)));
+            result.push_back(static_cast<char>(
+                0x80 | ((unit >> 6) & 0x3F)));
+            result.push_back(static_cast<char>(0x80 | (unit & 0x3F)));
+        }
+    }
+    return result;
+}
+
 }  // namespace djinterop::onelibrary::anlz

@@ -58,4 +58,17 @@ std::vector<tag_section> parse_pmai(const std::vector<uint8_t>& data);
 /// \return Ordered list of parsed tags.
 std::vector<tag_section> parse_pmai_file(const std::string& path);
 
+/// Find the first tag with the given fourcc, or nullptr if not found.
+const tag_section* find_tag(
+    const std::vector<tag_section>& tags, const std::string& fourcc);
+
+/// Read the volume-relative path from a PPTH tag payload.
+///
+/// The payload is UTF-16BE text with a trailing NUL.  This function
+/// decodes it to a UTF-8 string.
+///
+/// \param payload Raw PPTH payload bytes (from `tag_section::payload`).
+/// \return Decoded path string.
+std::string read_ppth(const std::vector<uint8_t>& payload);
+
 }  // namespace djinterop::onelibrary::anlz

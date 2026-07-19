@@ -566,6 +566,113 @@ BOOST_AUTO_TEST_CASE(parse_pmai__djay_dat__correct_tags)
     BOOST_TEST(tags[6].id == "PCOB");
 }
 
+// =========================================================================
+// PPTH reader tests
+// =========================================================================
+
+BOOST_TEST_DECORATOR(
+    *utf::description("read_ppth() decodes simple ASCII path"))
+BOOST_AUTO_TEST_CASE(read_ppth__ascii__correct)
+{
+    // "/Contents/Test.flac" as UTF-16BE + trailing NUL.
+    std::string path = "/Contents/Test.flac";
+    std::vector<uint8_t> payload;
+    for (char c : path)
+    {
+        payload.push_back(0);
+        payload.push_back(static_cast<uint8_t>(c));
+    }
+    payload.push_back(0);
+    payload.push_back(0);
+
+    BOOST_TEST(anlz::read_ppth(payload) == path);
+}
+
+BOOST_TEST_DECORATOR(
+    *utf::description("read_ppth() decodes path without trailing NUL"))
+BOOST_AUTO_TEST_CASE(read_ppth__no_nul__correct)
+{
+    // Same path but without trailing NUL.
+    std::string path = "/Contents/Test.flac";
+    std::vector<uint8_t> payload;
+    for (char c : path)
+    {
+        payload.push_back(0);
+        payload.push_back(static_cast<uint8_t>(c));
+    }
+
+    BOOST_TEST(anlz::read_ppth(payload) == path);
+}
+
+BOOST_TEST_DECORATOR(
+    *utf::description("read_ppth() decodes non-ASCII path from djay export"))
+BOOST_AUTO_TEST_CASE(read_ppth__djay_export__correct)
+{
+    // The djay export path contains U+2019 (RIGHT SINGLE QUOTATION MARK),
+    // which in UTF-16BE is 0x2019.
+    auto tags = anlz::parse_pmai_file(
+        source_root + "PIONEER_DJAY_ONE/USBANLZ/P039/000272B9/ANLZ0000.DAT");
+    const auto* ppth = anlz::find_tag(tags, "PPTH");
+    BOOST_REQUIRE(ppth != nullptr);
+
+    auto path = anlz::read_ppth(ppth->payload);
+    // The path starts with /Contents/ and ends with .flac.
+    BOOST_TEST(path.substr(0, 10) == "/Contents/");
+    BOOST_TEST(path.substr(path.size() - 5) == ".flac");
+    // The path contains the U+2019 character (UTF-8: 0xE2 0x80 0x99).
+    BOOST_TEST(path.find('\xe2') != std::string::npos);
+}
+
+BOOST_TEST_DECORATOR(
+    *utf::description("find_tag() returns first matching tag"))
+BOOST_AUTO_TEST_CASE(find_tag__first_match__correct)
+{
+    auto tags = anlz::parse_pmai_file(
+        source_root + "PIONEER_DJAY_ONE/USBANLZ/P039/000272B9/ANLZ0000.DAT");
+
+    // .DAT has two PCOB tags; find_tag returns the first.
+    const auto* pcob = anlz::find_tag(tags, "PCOB");
+    BOOST_REQUIRE(pcob != nullptr);
+    BOOST_TEST(pcob->id == "PCOB");
+}
+
+BOOST_TEST_DECORATOR(
+    *utf::description("find_tag() returns nullptr for missing tag"))
+BOOST_AUTO_TEST_CASE(find_tag__missing__nullptr)
+{
+    auto tags = anlz::parse_pmai_file(
+        source_root + "PIONEER_DJAY_ONE/USBANLZ/P039/000272B9/ANLZ0000.DAT");
+
+    // PSSI is not present in .DAT files.
+    const auto* pssi = anlz::find_tag(tags, "PSSI");
+    BOOST_TEST(pssi == nullptr);
+}
+
+BOOST_TEST_DECORATOR(
+    *utf::description("read_ppth() round-trips with writer"))
+BOOST_AUTO_TEST_CASE(read_ppth__round_trip__matches)
+{
+    temporary_directory tmp;
+
+    anlz::anlz_track_data track;
+    track.relative_path = "/Contents/Test Track.flac";
+    track.sample_rate = 44100.0;
+
+    anlz::write_anlz_files(tmp.temp_dir, track);
+
+    auto anlz_path = anlz::compute_anlz_path(track.relative_path);
+    namespace fs = std::filesystem;
+    auto dat_path = (fs::path{tmp.temp_dir} / ".PIONEER/USBANLZ" /
+                     anlz_path.to_directory() / "ANLZ0000.DAT")
+                        .string();
+
+    auto tags = anlz::parse_pmai_file(dat_path);
+    const auto* ppth = anlz::find_tag(tags, "PPTH");
+    BOOST_REQUIRE(ppth != nullptr);
+
+    BOOST_TEST(anlz::read_ppth(ppth->payload) == track.relative_path);
+}
+
 BOOST_TEST_DECORATOR(
     *utf::description("parse_pmai() parses djay Pro reference .EXT file"))
 BOOST_AUTO_TEST_CASE(parse_pmai__djay_ext__correct_tags)

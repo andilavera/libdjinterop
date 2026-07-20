@@ -18,8 +18,11 @@
 #pragma once
 
 #include <cstdint>
+#include <optional>
 #include <string>
 #include <vector>
+
+#include <djinterop/performance_data.hpp>
 
 #include "pmai_writer.hpp"  // for tag_section
 
@@ -70,5 +73,42 @@ const tag_section* find_tag(
 /// \param payload Raw PPTH payload bytes (from `tag_section::payload`).
 /// \return Decoded path string.
 std::string read_ppth(const std::vector<uint8_t>& payload);
+
+/// Read a PQTZ beat grid tag and return beatgrid markers.
+///
+/// Parses the payload: pad(4) + 0x80000(u4) + count(u4) + entries.
+/// Each 8-byte entry: beat_number(u2), tempo_x100(u2), time_ms(u4).
+/// The beat index is the entry position (0-based).  Sample offsets
+/// are derived from time_ms using the given sample rate.
+///
+/// \param payload Raw PQTZ payload bytes.
+/// \param sample_rate Sample rate in Hz for time_ms → sample conversion.
+/// \return Beat grid markers.
+std::vector<beatgrid_marker> read_pqtz(
+    const std::vector<uint8_t>& payload, double sample_rate);
+
+/// Parsed hot cues and loops from PCOB tag(s).
+struct pcob_cues
+{
+    std::vector<std::optional<hot_cue>> hot_cues;
+    std::vector<std::optional<loop>> loops;
+};
+
+/// Read a PCOB cue tag and return hot cues and/or loops.
+///
+/// Parses the payload: type(u4) + unk(u2) + count(u2) + memory_count(u4)
+/// + entries.  Each entry is a PCPT sub-tag whose `len_entry` field
+/// gives its size.
+///
+/// For type=1 (hot cues), entries map to `hot_cues` by `hot_cue` index
+/// (1-based → 0-based slot).  For type=0 (memory), entries with
+/// type=2 (loop) map to `loops`; point cues are ignored (no djinterop
+/// representation).
+///
+/// \param payload Raw PCOB payload bytes.
+/// \param sample_rate Sample rate in Hz for time_ms → sample conversion.
+/// \return Parsed hot cues and loops.
+pcob_cues read_pcob(
+    const std::vector<uint8_t>& payload, double sample_rate);
 
 }  // namespace djinterop::onelibrary::anlz

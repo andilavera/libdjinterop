@@ -36,6 +36,12 @@ inline uint32_t sample_offset_to_ms(double sample_offset, double sample_rate)
     return static_cast<uint32_t>(sample_offset * 1000.0 / sample_rate);
 }
 
+/// Convert milliseconds to a sample offset at the given sample rate.
+inline double ms_to_sample_offset(uint32_t time_ms, double sample_rate)
+{
+    return static_cast<double>(time_ms) * sample_rate / 1000.0;
+}
+
 // =========================================================================
 // PQTZ — beat grid entries
 // =========================================================================

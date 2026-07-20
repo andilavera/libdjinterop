@@ -20,6 +20,8 @@
 #include <fstream>
 #include <stdexcept>
 
+#include "convert.hpp"
+
 namespace djinterop::onelibrary::anlz
 {
 
@@ -153,6 +155,110 @@ std::string read_ppth(const std::vector<uint8_t>& payload)
             result.push_back(static_cast<char>(0x80 | (unit & 0x3F)));
         }
     }
+    return result;
+}
+
+// =========================================================================
+// PQTZ — beat grid reader
+// =========================================================================
+
+std::vector<beatgrid_marker> read_pqtz(
+    const std::vector<uint8_t>& payload, double sample_rate)
+{
+    // Layout: pad(4) + 0x80000(4) + count(4) + entries(8 each)
+    if (payload.size() < 12)
+        return {};
+
+    uint32_t count = read_u32_be(payload.data(), 8);
+    if (payload.size() < 12 + static_cast<size_t>(count) * 8)
+        return {};
+
+    std::vector<beatgrid_marker> result;
+    result.reserve(count);
+    for (uint32_t i = 0; i < count; ++i)
+    {
+        size_t off = 12 + i * 8;
+        // beat_number (u16) and tempo (u16) at off and off+2.
+        uint32_t time_ms = read_u32_be(payload.data(), off + 4);
+        double sample_offset = convert::ms_to_sample_offset(
+            time_ms, sample_rate);
+        result.push_back(
+            {static_cast<int32_t>(i), sample_offset});
+    }
+    return result;
+}
+
+// =========================================================================
+// PCOB — cue / loop reader
+// =========================================================================
+
+pcob_cues read_pcob(
+    const std::vector<uint8_t>& payload, double sample_rate)
+{
+    pcob_cues result;
+
+    // Layout: type(u4) + unk(u2) + count(u2) + memory_count(u4) + entries
+    if (payload.size() < 12)
+        return result;
+
+    uint32_t container_type = read_u32_be(payload.data(), 0);
+    uint16_t count = read_u16_be(payload.data(), 6);
+
+    size_t offset = 12;
+    for (uint16_t i = 0; i < count; ++i)
+    {
+        if (offset + 12 > payload.size())
+            break;
+
+        // PCPT sub-tag header: "PCPT"(4) + len_header(4) + len_entry(4)
+        uint32_t len_entry = read_u32_be(payload.data(), offset + 8);
+        if (len_entry < 12 || offset + len_entry > payload.size())
+            break;
+
+        // Body starts at offset + 12.
+        size_t b = offset + 12;
+        if (b + 40 > payload.size())
+            break;
+
+        uint32_t hot_cue = read_u32_be(payload.data(), b);
+        // status at b+4, u1 at b+8, order_first at b+12, order_last at b+14
+        uint8_t entry_type = payload[b + 16];  // 1=point, 2=loop
+        uint32_t time_ms = read_u32_be(payload.data(), b + 20);
+        uint32_t loop_time_ms = read_u32_be(payload.data(), b + 24);
+
+        double sample_offset =
+            convert::ms_to_sample_offset(time_ms, sample_rate);
+
+        if (container_type == 1)
+        {
+            // Hot cues: hot_cue is 1-based slot index.
+            if (hot_cue >= 1 && hot_cue <= 8)
+            {
+                auto idx = static_cast<size_t>(hot_cue - 1);
+                if (idx >= result.hot_cues.size())
+                    result.hot_cues.resize(idx + 1);
+                djinterop::hot_cue hc{};
+                hc.sample_offset = sample_offset;
+                result.hot_cues[idx] = hc;
+            }
+        }
+        else if (entry_type == 2)
+        {
+            // Memory loop: time_ms is start, loop_time_ms is duration.
+            djinterop::loop lp{};
+            lp.start_sample_offset = sample_offset;
+            if (loop_time_ms != 0xFFFFFFFF)
+                lp.end_sample_offset =
+                    convert::ms_to_sample_offset(
+                        time_ms + loop_time_ms, sample_rate);
+            else
+                lp.end_sample_offset = sample_offset;
+            result.loops.push_back(lp);
+        }
+
+        offset += len_entry;
+    }
+
     return result;
 }
 

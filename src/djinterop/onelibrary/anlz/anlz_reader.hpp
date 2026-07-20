@@ -111,4 +111,36 @@ struct pcob_cues
 pcob_cues read_pcob(
     const std::vector<uint8_t>& payload, double sample_rate);
 
+// =========================================================================
+// Waveform tag readers
+// =========================================================================
+
+/// Read a PWAV mono waveform tag (1 byte/entry: [whiteness:3][height:5]).
+/// Header: count(u4) + 0x00010000(u4) + data.
+std::vector<waveform_entry> read_pwav(const std::vector<uint8_t>& payload);
+
+/// Read a PWV2 tiny mono waveform tag (1 byte/entry: height in low 4 bits).
+/// Header: count(u4) + 0x00010000(u4) + data.
+std::vector<waveform_entry> read_pwv2(const std::vector<uint8_t>& payload);
+
+/// Read a PWV3 colour waveform tag (1 byte/entry: [colour:3][height:5]).
+/// Header: 1(u4) + count(u4) + 0x00960000(u4) + data.
+std::vector<waveform_entry> read_pwv3(const std::vector<uint8_t>& payload);
+
+/// Read a PWV4 colour waveform preview (6 bytes/entry).
+/// Header: 6(u4) + count(u4) + unknown(u4) + data.
+std::vector<waveform_entry> read_pwv4(const std::vector<uint8_t>& payload);
+
+/// Read a PWV5 colour waveform detail (2 bytes/entry, 16-bit BE).
+/// Header: 2(u4) + count(u4) + unknown(u4) + data.
+std::vector<waveform_entry> read_pwv5(const std::vector<uint8_t>& payload);
+
+/// Read a PWV6 3-band waveform preview (3 bytes/entry: mid, high, low).
+/// Header: 3(u4) + count(u4) + data.
+std::vector<waveform_entry> read_pwv6(const std::vector<uint8_t>& payload);
+
+/// Read a PWV7 3-band waveform detail (3 bytes/entry: mid, high, low).
+/// Header: 3(u4) + count(u4) + 0x00960000(u4) + data.
+std::vector<waveform_entry> read_pwv7(const std::vector<uint8_t>& payload);
+
 }  // namespace djinterop::onelibrary::anlz

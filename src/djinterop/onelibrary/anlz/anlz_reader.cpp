@@ -262,4 +262,142 @@ pcob_cues read_pcob(
     return result;
 }
 
+// =========================================================================
+// Waveform readers
+// =========================================================================
+
+std::vector<waveform_entry> read_pwav(const std::vector<uint8_t>& payload)
+{
+    // Header: count(u4) + 0x00010000(u4) + data.
+    if (payload.size() < 8)
+        return {};
+
+    uint32_t count = read_u32_be(payload.data(), 0);
+    if (payload.size() < 8 + count)
+        return {};
+
+    std::vector<waveform_entry> result;
+    result.reserve(count);
+    for (uint32_t i = 0; i < count; ++i)
+        result.push_back(convert::from_pwav_byte(payload[8 + i]));
+    return result;
+}
+
+std::vector<waveform_entry> read_pwv2(const std::vector<uint8_t>& payload)
+{
+    // Header: count(u4) + 0x00010000(u4) + data.
+    if (payload.size() < 8)
+        return {};
+
+    uint32_t count = read_u32_be(payload.data(), 0);
+    if (payload.size() < 8 + count)
+        return {};
+
+    std::vector<waveform_entry> result;
+    result.reserve(count);
+    for (uint32_t i = 0; i < count; ++i)
+        result.push_back(convert::from_pwv2_byte(payload[8 + i]));
+    return result;
+}
+
+std::vector<waveform_entry> read_pwv3(const std::vector<uint8_t>& payload)
+{
+    // Header: 1(u4) + count(u4) + 0x00960000(u4) + data.
+    if (payload.size() < 12)
+        return {};
+
+    uint32_t count = read_u32_be(payload.data(), 4);
+    if (payload.size() < 12 + count)
+        return {};
+
+    std::vector<waveform_entry> result;
+    result.reserve(count);
+    for (uint32_t i = 0; i < count; ++i)
+        result.push_back(convert::from_pwv3_byte(payload[12 + i]));
+    return result;
+}
+
+std::vector<waveform_entry> read_pwv4(const std::vector<uint8_t>& payload)
+{
+    // Header: 6(u4) + count(u4) + unknown(u4) + data (6 bytes/entry).
+    if (payload.size() < 12)
+        return {};
+
+    uint32_t count = read_u32_be(payload.data(), 4);
+    if (payload.size() < 12 + static_cast<size_t>(count) * 6)
+        return {};
+
+    std::vector<waveform_entry> result;
+    result.reserve(count);
+    for (uint32_t i = 0; i < count; ++i)
+    {
+        size_t off = 12 + i * 6;
+        result.push_back(convert::from_pwv4_entry(payload.data() + off));
+    }
+    return result;
+}
+
+std::vector<waveform_entry> read_pwv5(const std::vector<uint8_t>& payload)
+{
+    // Header: 2(u4) + count(u4) + unknown(u4) + data (2 bytes/entry, BE).
+    if (payload.size() < 12)
+        return {};
+
+    uint32_t count = read_u32_be(payload.data(), 4);
+    if (payload.size() < 12 + static_cast<size_t>(count) * 2)
+        return {};
+
+    std::vector<waveform_entry> result;
+    result.reserve(count);
+    for (uint32_t i = 0; i < count; ++i)
+    {
+        size_t off = 12 + i * 2;
+        uint16_t v = read_u16_be(payload.data(), off);
+        result.push_back(convert::from_pwv5_entry(v));
+    }
+    return result;
+}
+
+std::vector<waveform_entry> read_pwv6(const std::vector<uint8_t>& payload)
+{
+    // Header: 3(u4) + count(u4) + data (3 bytes/entry: mid, high, low).
+    if (payload.size() < 8)
+        return {};
+
+    uint32_t count = read_u32_be(payload.data(), 4);
+    if (payload.size() < 8 + static_cast<size_t>(count) * 3)
+        return {};
+
+    std::vector<waveform_entry> result;
+    result.reserve(count);
+    for (uint32_t i = 0; i < count; ++i)
+    {
+        size_t off = 8 + i * 3;
+        result.push_back(convert::from_pwv67_entry(
+            payload[off], payload[off + 1], payload[off + 2]));
+    }
+    return result;
+}
+
+std::vector<waveform_entry> read_pwv7(const std::vector<uint8_t>& payload)
+{
+    // Header: 3(u4) + count(u4) + 0x00960000(u4) + data (3 bytes/entry).
+    if (payload.size() < 12)
+        return {};
+
+    uint32_t count = read_u32_be(payload.data(), 4);
+    if (payload.size() < 12 + static_cast<size_t>(count) * 3)
+        return {};
+
+    std::vector<waveform_entry> result;
+    result.reserve(count);
+    for (uint32_t i = 0; i < count; ++i)
+    {
+        size_t off = 12 + i * 3;
+        result.push_back(convert::from_pwv67_entry(
+            payload[off], payload[off + 1], payload[off + 2]));
+    }
+    return result;
+}
+
 }  // namespace djinterop::onelibrary::anlz

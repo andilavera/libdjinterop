@@ -195,4 +195,70 @@ inline pwv67_entry to_pwv67_entry(const waveform_entry& e)
     return {e.mid.value, e.high.value, e.low.value};
 }
 
+// =========================================================================
+// Waveform — read-direction (byte → waveform_entry) conversions
+// =========================================================================
+
+/// Scale a 5-bit value (0–31) to 8-bit (0–248) by left-shifting 3.
+inline uint8_t scale_5to8(uint8_t v) { return static_cast<uint8_t>(v << 3); }
+
+/// Scale a 4-bit value (0–15) to 8-bit (0–240) by left-shifting 4.
+inline uint8_t scale_4to8(uint8_t v) { return static_cast<uint8_t>(v << 4); }
+
+/// Scale a 3-bit value (0–7) to 8-bit (0–224) by left-shifting 5.
+inline uint8_t scale_3to8(uint8_t v) { return static_cast<uint8_t>(v << 5); }
+
+/// Convert a PWAV byte [whiteness:3][height:5] to a waveform entry.
+/// The mono height maps to all three band values; whiteness maps to all
+/// three opacities.
+inline waveform_entry from_pwav_byte(uint8_t b)
+{
+    uint8_t height = b & 0x1F;
+    uint8_t whiteness = (b >> 5) & 0x07;
+    uint8_t value = scale_5to8(height);
+    uint8_t opacity = scale_3to8(whiteness);
+    return {{value, opacity}, {value, opacity}, {value, opacity}};
+}
+
+/// Convert a PWV2 byte (height in low 4 bits) to a waveform entry.
+inline waveform_entry from_pwv2_byte(uint8_t b)
+{
+    uint8_t value = scale_4to8(b & 0x0F);
+    return {{value, 255}, {value, 255}, {value, 255}};
+}
+
+/// Convert a PWV3 byte [colour:3][height:5] to a waveform entry.
+/// Colour is a visual hint and is not reversed; height maps to all bands.
+inline waveform_entry from_pwv3_byte(uint8_t b)
+{
+    uint8_t value = scale_5to8(b & 0x1F);
+    return {{value, 255}, {value, 255}, {value, 255}};
+}
+
+/// Convert a PWV4 6-byte entry to a waveform entry.
+/// Layout: ch(1) + luminance(1) + blue_inv(1) + red(1) + green(1) + blue(1).
+inline waveform_entry from_pwv4_entry(const uint8_t* d)
+{
+    return {
+        {d[3], 255},              // low:  red,    opacity not encoded
+        {d[4], d[1]},             // mid:  green,  luminance
+        {d[5], static_cast<uint8_t>(255 - d[2])},  // high: blue,  255 - blue_inv
+    };
+}
+
+/// Convert a PWV5 16-bit entry [R:3][G:3][B:3][height:5][00:2] to a waveform entry.
+inline waveform_entry from_pwv5_entry(uint16_t v)
+{
+    uint8_t r = scale_3to8((v >> 13) & 0x07);
+    uint8_t g = scale_3to8((v >> 10) & 0x07);
+    uint8_t b = scale_3to8((v >> 7) & 0x07);
+    return {{r, 255}, {g, 255}, {b, 255}};
+}
+
+/// Convert PWV6/PWV7 3-byte data (mid, high, low) to a waveform entry.
+inline waveform_entry from_pwv67_entry(uint8_t mid, uint8_t high, uint8_t low)
+{
+    return {{low, 255}, {mid, 255}, {high, 255}};
+}
+
 }  // namespace djinterop::onelibrary::anlz::convert

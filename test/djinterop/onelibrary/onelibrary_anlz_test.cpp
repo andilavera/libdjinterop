@@ -567,6 +567,438 @@ BOOST_AUTO_TEST_CASE(parse_pmai__djay_dat__correct_tags)
 }
 
 // =========================================================================
+// Waveform reader tests — convert helpers
+// =========================================================================
+
+BOOST_TEST_DECORATOR(
+    *utf::description("from_pwav_byte() decodes whiteness and height to all bands"))
+BOOST_AUTO_TEST_CASE(from_pwav_byte__typical__correct)
+{
+    // byte 0xF0 = whiteness=7, height=16 → value=128, opacity=224
+    auto e = convert::from_pwav_byte(0xF0);
+    BOOST_TEST(e.low.value == 128);
+    BOOST_TEST(e.mid.value == 128);
+    BOOST_TEST(e.high.value == 128);
+    BOOST_TEST(e.low.opacity == 224);
+    BOOST_TEST(e.mid.opacity == 224);
+    BOOST_TEST(e.high.opacity == 224);
+}
+
+BOOST_TEST_DECORATOR(
+    *utf::description("from_pwav_byte() decodes zero byte to zero values"))
+BOOST_AUTO_TEST_CASE(from_pwav_byte__zero__all_zero)
+{
+    auto e = convert::from_pwav_byte(0x00);
+    BOOST_TEST(e.low.value == 0);
+    BOOST_TEST(e.mid.value == 0);
+    BOOST_TEST(e.high.value == 0);
+    BOOST_TEST(e.low.opacity == 0);
+}
+
+BOOST_TEST_DECORATOR(
+    *utf::description("from_pwv2_byte() decodes 4-bit height to all bands"))
+BOOST_AUTO_TEST_CASE(from_pwv2_byte__typical__correct)
+{
+    // byte 0x0C = height 12 → value = 12 << 4 = 192
+    auto e = convert::from_pwv2_byte(0x0C);
+    BOOST_TEST(e.low.value == 192);
+    BOOST_TEST(e.mid.value == 192);
+    BOOST_TEST(e.high.value == 192);
+    BOOST_TEST(e.low.opacity == 255);
+}
+
+BOOST_TEST_DECORATOR(
+    *utf::description("from_pwv3_byte() decodes height to all bands, ignores colour"))
+BOOST_AUTO_TEST_CASE(from_pwv3_byte__typical__correct)
+{
+    // byte 0xE0 = colour=7, height=0 → value=0
+    auto e = convert::from_pwv3_byte(0xE0);
+    BOOST_TEST(e.low.value == 0);
+    BOOST_TEST(e.mid.value == 0);
+    BOOST_TEST(e.high.value == 0);
+    // byte 0x1F = colour=0, height=31 → value=248
+    auto e2 = convert::from_pwv3_byte(0x1F);
+    BOOST_TEST(e2.low.value == 248);
+}
+
+BOOST_TEST_DECORATOR(
+    *utf::description("from_pwv4_entry() decodes 6-byte entry to 3-band waveform"))
+BOOST_AUTO_TEST_CASE(from_pwv4_entry__typical__correct)
+{
+    // ch=0xE0, luminance=180, blue_inv=35, red=100, green=150, blue=25
+    uint8_t d[6] = {0xE0, 180, 35, 100, 150, 25};
+    auto e = convert::from_pwv4_entry(d);
+    BOOST_TEST(e.low.value == 100);     // red
+    BOOST_TEST(e.low.opacity == 255);   // not encoded
+    BOOST_TEST(e.mid.value == 150);     // green
+    BOOST_TEST(e.mid.opacity == 180);   // luminance
+    BOOST_TEST(e.high.value == 25);      // blue
+    BOOST_TEST(e.high.opacity == 220);  // 255 - 35
+}
+
+BOOST_TEST_DECORATOR(
+    *utf::description("from_pwv5_entry() decodes 16-bit entry to RGB bands"))
+BOOST_AUTO_TEST_CASE(from_pwv5_entry__typical__correct)
+{
+    // R=7, G=4, B=2, height=31 → (7<<13)|(4<<10)|(2<<7)|(31<<2)
+    uint16_t v = (7u << 13) | (4u << 10) | (2u << 7) | (31u << 2);
+    auto e = convert::from_pwv5_entry(v);
+    BOOST_TEST(e.low.value == 224);   // 7 << 5
+    BOOST_TEST(e.mid.value == 128);   // 4 << 5
+    BOOST_TEST(e.high.value == 64);   // 2 << 5
+    BOOST_TEST(e.low.opacity == 255);
+}
+
+BOOST_TEST_DECORATOR(
+    *utf::description("from_pwv67_entry() maps mid/high/low bytes to bands"))
+BOOST_AUTO_TEST_CASE(from_pwv67_entry__typical__correct)
+{
+    auto e = convert::from_pwv67_entry(20, 30, 10);
+    BOOST_TEST(e.low.value == 10);
+    BOOST_TEST(e.mid.value == 20);
+    BOOST_TEST(e.high.value == 30);
+    BOOST_TEST(e.low.opacity == 255);
+}
+
+// =========================================================================
+// Waveform reader tests — parse from reference files
+// =========================================================================
+
+BOOST_TEST_DECORATOR(
+    *utf::description("read_pwav() returns empty for empty payload"))
+BOOST_AUTO_TEST_CASE(read_pwav__empty_payload__empty)
+{
+    std::vector<uint8_t> empty;
+    auto result = anlz::read_pwav(empty);
+    BOOST_TEST(result.empty());
+}
+
+BOOST_TEST_DECORATOR(
+    *utf::description("read_pwav() returns empty for djay reference (count=0)"))
+BOOST_AUTO_TEST_CASE(read_pwav__djay_reference__empty)
+{
+    auto tags = anlz::parse_pmai_file(
+        source_root + "PIONEER_DJAY_ONE/USBANLZ/P039/000272B9/ANLZ0000.DAT");
+    const auto* pwav = anlz::find_tag(tags, "PWAV");
+    BOOST_REQUIRE(pwav != nullptr);
+
+    // djay Pro export has an empty PWAV (count=0).
+    auto result = anlz::read_pwav(pwav->payload);
+    BOOST_TEST(result.empty());
+}
+
+BOOST_TEST_DECORATOR(
+    *utf::description("read_pwv2() returns empty for djay reference (count=0)"))
+BOOST_AUTO_TEST_CASE(read_pwv2__djay_reference__empty)
+{
+    auto tags = anlz::parse_pmai_file(
+        source_root + "PIONEER_DJAY_ONE/USBANLZ/P039/000272B9/ANLZ0000.DAT");
+    const auto* pwv2 = anlz::find_tag(tags, "PWV2");
+    BOOST_REQUIRE(pwv2 != nullptr);
+
+    // djay Pro export has an empty PWV2 (count=0).
+    auto result = anlz::read_pwv2(pwv2->payload);
+    BOOST_TEST(result.empty());
+}
+
+BOOST_TEST_DECORATOR(
+    *utf::description("read_pwv3() reads colour waveform from djay reference .EXT"))
+BOOST_AUTO_TEST_CASE(read_pwv3__djay_reference__non_empty)
+{
+    auto tags = anlz::parse_pmai_file(
+        source_root + "PIONEER_DJAY_ONE/USBANLZ/P039/000272B9/ANLZ0000.EXT");
+    const auto* pwv3 = anlz::find_tag(tags, "PWV3");
+    BOOST_REQUIRE(pwv3 != nullptr);
+
+    auto result = anlz::read_pwv3(pwv3->payload);
+    BOOST_TEST(!result.empty());
+    BOOST_TEST(result[0].low.value == result[0].mid.value);
+}
+
+BOOST_TEST_DECORATOR(
+    *utf::description("read_pwv4() reads colour preview from djay reference .EXT"))
+BOOST_AUTO_TEST_CASE(read_pwv4__djay_reference__non_empty)
+{
+    auto tags = anlz::parse_pmai_file(
+        source_root + "PIONEER_DJAY_ONE/USBANLZ/P039/000272B9/ANLZ0000.EXT");
+    const auto* pwv4 = anlz::find_tag(tags, "PWV4");
+    BOOST_REQUIRE(pwv4 != nullptr);
+
+    auto result = anlz::read_pwv4(pwv4->payload);
+    BOOST_TEST(!result.empty());
+}
+
+BOOST_TEST_DECORATOR(
+    *utf::description("read_pwv5() reads colour detail from djay reference .EXT"))
+BOOST_AUTO_TEST_CASE(read_pwv5__djay_reference__non_empty)
+{
+    auto tags = anlz::parse_pmai_file(
+        source_root + "PIONEER_DJAY_ONE/USBANLZ/P039/000272B9/ANLZ0000.EXT");
+    const auto* pwv5 = anlz::find_tag(tags, "PWV5");
+    BOOST_REQUIRE(pwv5 != nullptr);
+
+    auto result = anlz::read_pwv5(pwv5->payload);
+    BOOST_TEST(!result.empty());
+}
+
+BOOST_TEST_DECORATOR(
+    *utf::description("read_pwv6() reads 3-band preview from djay reference .2EX"))
+BOOST_AUTO_TEST_CASE(read_pwv6__djay_reference__non_empty)
+{
+    auto tags = anlz::parse_pmai_file(
+        source_root + "PIONEER_DJAY_ONE/USBANLZ/P039/000272B9/ANLZ0000.2EX");
+    const auto* pwv6 = anlz::find_tag(tags, "PWV6");
+    BOOST_REQUIRE(pwv6 != nullptr);
+
+    auto result = anlz::read_pwv6(pwv6->payload);
+    BOOST_TEST(!result.empty());
+    // PWV6 stores distinct band values per entry.
+    BOOST_TEST(result[0].low.value >= 0);
+    BOOST_TEST(result[0].mid.value >= 0);
+    BOOST_TEST(result[0].high.value >= 0);
+}
+
+BOOST_TEST_DECORATOR(
+    *utf::description("read_pwv7() reads 3-band detail from djay reference .2EX"))
+BOOST_AUTO_TEST_CASE(read_pwv7__djay_reference__non_empty)
+{
+    auto tags = anlz::parse_pmai_file(
+        source_root + "PIONEER_DJAY_ONE/USBANLZ/P039/000272B9/ANLZ0000.2EX");
+    const auto* pwv7 = anlz::find_tag(tags, "PWV7");
+    BOOST_REQUIRE(pwv7 != nullptr);
+
+    auto result = anlz::read_pwv7(pwv7->payload);
+    BOOST_TEST(!result.empty());
+}
+
+// =========================================================================
+// Waveform reader tests — round-trip with writer
+// =========================================================================
+
+BOOST_TEST_DECORATOR(
+    *utf::description("read_pwav() round-trips with writer"))
+BOOST_AUTO_TEST_CASE(read_pwav__round_trip__matches)
+{
+    temporary_directory tmp;
+
+    anlz::anlz_track_data track;
+    track.relative_path = "/Contents/Test.flac";
+    track.sample_rate = 44100.0;
+    track.waveform = {
+        {{128, 255}, {128, 255}, {128, 255}},
+        {{0, 0}, {0, 0}, {0, 0}},
+        {{255, 255}, {255, 255}, {255, 255}},
+    };
+
+    anlz::write_anlz_files(tmp.temp_dir, track);
+
+    auto anlz_path = anlz::compute_anlz_path(track.relative_path);
+    namespace fs = std::filesystem;
+    auto dat_path = (fs::path{tmp.temp_dir} / ".PIONEER/USBANLZ" /
+                     anlz_path.to_directory() / "ANLZ0000.DAT")
+                        .string();
+
+    auto tags = anlz::parse_pmai_file(dat_path);
+    const auto* pwav = anlz::find_tag(tags, "PWAV");
+    BOOST_REQUIRE(pwav != nullptr);
+
+    auto result = anlz::read_pwav(pwav->payload);
+    // Writer downsamples to max 1200 entries; 3 entries → 3 output.
+    BOOST_REQUIRE_EQUAL(result.size(), 3);
+    // Entry 0: max value=128 → height=16, max opacity=255 → whiteness=7.
+    // Read back: value=128, opacity=224.
+    BOOST_TEST(result[0].low.value == 128);
+    BOOST_TEST(result[0].low.opacity == 224);
+    // Entry 1: all zeros → height=0, whiteness=0 → value=0, opacity=0.
+    BOOST_TEST(result[1].low.value == 0);
+    BOOST_TEST(result[1].low.opacity == 0);
+    // Entry 2: max value=255 → height=31, max opacity=255 → whiteness=7.
+    // Read back: value=248, opacity=224.
+    BOOST_TEST(result[2].low.value == 248);
+    BOOST_TEST(result[2].low.opacity == 224);
+}
+
+BOOST_TEST_DECORATOR(
+    *utf::description("read_pwv6() round-trips with writer"))
+BOOST_AUTO_TEST_CASE(read_pwv6__round_trip__matches)
+{
+    temporary_directory tmp;
+
+    anlz::anlz_track_data track;
+    track.relative_path = "/Contents/Test.flac";
+    track.sample_rate = 44100.0;
+    track.waveform = {
+        {{10, 255}, {20, 255}, {30, 255}},
+        {{40, 255}, {50, 255}, {60, 255}},
+    };
+
+    anlz::write_anlz_files(tmp.temp_dir, track);
+
+    auto anlz_path = anlz::compute_anlz_path(track.relative_path);
+    namespace fs = std::filesystem;
+    auto twoex_path = (fs::path{tmp.temp_dir} / ".PIONEER/USBANLZ" /
+                        anlz_path.to_directory() / "ANLZ0000.2EX")
+                           .string();
+
+    auto tags = anlz::parse_pmai_file(twoex_path);
+    const auto* pwv6 = anlz::find_tag(tags, "PWV6");
+    BOOST_REQUIRE(pwv6 != nullptr);
+
+    auto result = anlz::read_pwv6(pwv6->payload);
+    // Writer downsamples to max 1200 entries; 2 entries → 2 output.
+    BOOST_REQUIRE_EQUAL(result.size(), 2);
+    // PWV6 stores mid/high/low directly, so values round-trip exactly.
+    BOOST_TEST(result[0].low.value == 10);
+    BOOST_TEST(result[0].mid.value == 20);
+    BOOST_TEST(result[0].high.value == 30);
+    BOOST_TEST(result[1].low.value == 40);
+    BOOST_TEST(result[1].mid.value == 50);
+    BOOST_TEST(result[1].high.value == 60);
+}
+
+BOOST_TEST_DECORATOR(
+    *utf::description("read_pwv7() round-trips with writer"))
+BOOST_AUTO_TEST_CASE(read_pwv7__round_trip__matches)
+{
+    temporary_directory tmp;
+
+    anlz::anlz_track_data track;
+    track.relative_path = "/Contents/Test.flac";
+    track.sample_rate = 44100.0;
+    track.waveform = {
+        {{10, 255}, {20, 255}, {30, 255}},
+        {{40, 255}, {50, 255}, {60, 255}},
+    };
+
+    anlz::write_anlz_files(tmp.temp_dir, track);
+
+    auto anlz_path = anlz::compute_anlz_path(track.relative_path);
+    namespace fs = std::filesystem;
+    auto twoex_path = (fs::path{tmp.temp_dir} / ".PIONEER/USBANLZ" /
+                        anlz_path.to_directory() / "ANLZ0000.2EX")
+                           .string();
+
+    auto tags = anlz::parse_pmai_file(twoex_path);
+    const auto* pwv7 = anlz::find_tag(tags, "PWV7");
+    BOOST_REQUIRE(pwv7 != nullptr);
+
+    auto result = anlz::read_pwv7(pwv7->payload);
+    BOOST_REQUIRE_EQUAL(result.size(), 2);
+    BOOST_TEST(result[0].low.value == 10);
+    BOOST_TEST(result[0].mid.value == 20);
+    BOOST_TEST(result[0].high.value == 30);
+    BOOST_TEST(result[1].low.value == 40);
+    BOOST_TEST(result[1].mid.value == 50);
+    BOOST_TEST(result[1].high.value == 60);
+}
+
+BOOST_TEST_DECORATOR(
+    *utf::description("read_pwv3() round-trips with writer"))
+BOOST_AUTO_TEST_CASE(read_pwv3__round_trip__matches)
+{
+    temporary_directory tmp;
+
+    anlz::anlz_track_data track;
+    track.relative_path = "/Contents/Test.flac";
+    track.sample_rate = 44100.0;
+    track.waveform = {
+        {{128, 255}, {64, 255}, {32, 255}},
+        {{255, 255}, {0, 0}, {0, 0}},
+    };
+
+    anlz::write_anlz_files(tmp.temp_dir, track);
+
+    auto anlz_path = anlz::compute_anlz_path(track.relative_path);
+    namespace fs = std::filesystem;
+    auto ext_path = (fs::path{tmp.temp_dir} / ".PIONEER/USBANLZ" /
+                     anlz_path.to_directory() / "ANLZ0000.EXT")
+                        .string();
+
+    auto tags = anlz::parse_pmai_file(ext_path);
+    const auto* pwv3 = anlz::find_tag(tags, "PWV3");
+    BOOST_REQUIRE(pwv3 != nullptr);
+
+    auto result = anlz::read_pwv3(pwv3->payload);
+    BOOST_REQUIRE_EQUAL(result.size(), 2);
+    // Entry 0: max value = 128 → height = 16 → value = 128.
+    BOOST_TEST(result[0].low.value == 128);
+    // Entry 1: max value = 255 → height = 31 → value = 248.
+    BOOST_TEST(result[1].low.value == 248);
+}
+
+BOOST_TEST_DECORATOR(
+    *utf::description("read_pwv4() round-trips with writer"))
+BOOST_AUTO_TEST_CASE(read_pwv4__round_trip__matches)
+{
+    temporary_directory tmp;
+
+    anlz::anlz_track_data track;
+    track.relative_path = "/Contents/Test.flac";
+    track.sample_rate = 44100.0;
+    track.waveform = {
+        {{100, 200}, {150, 180}, {200, 220}},
+    };
+
+    anlz::write_anlz_files(tmp.temp_dir, track);
+
+    auto anlz_path = anlz::compute_anlz_path(track.relative_path);
+    namespace fs = std::filesystem;
+    auto ext_path = (fs::path{tmp.temp_dir} / ".PIONEER/USBANLZ" /
+                     anlz_path.to_directory() / "ANLZ0000.EXT")
+                        .string();
+
+    auto tags = anlz::parse_pmai_file(ext_path);
+    const auto* pwv4 = anlz::find_tag(tags, "PWV4");
+    BOOST_REQUIRE(pwv4 != nullptr);
+
+    auto result = anlz::read_pwv4(pwv4->payload);
+    BOOST_REQUIRE_EQUAL(result.size(), 1);
+    // Writer stores: red=low.value=100, green=mid.value=150,
+    // luminance=mid.opacity=180, blue_inv=255-high.opacity=35,
+    // blue_height=max>>3=25.
+    BOOST_TEST(result[0].low.value == 100);    // red
+    BOOST_TEST(result[0].mid.value == 150);    // green
+    BOOST_TEST(result[0].mid.opacity == 180);  // luminance
+    BOOST_TEST(result[0].high.opacity == 220); // 255 - 35
+    BOOST_TEST(result[0].high.value == 25);    // blue_height = max(200)>>3
+}
+
+BOOST_TEST_DECORATOR(
+    *utf::description("read_pwv5() round-trips with writer"))
+BOOST_AUTO_TEST_CASE(read_pwv5__round_trip__matches)
+{
+    temporary_directory tmp;
+
+    anlz::anlz_track_data track;
+    track.relative_path = "/Contents/Test.flac";
+    track.sample_rate = 44100.0;
+    track.waveform = {
+        {{255, 255}, {128, 255}, {64, 255}},
+    };
+
+    anlz::write_anlz_files(tmp.temp_dir, track);
+
+    auto anlz_path = anlz::compute_anlz_path(track.relative_path);
+    namespace fs = std::filesystem;
+    auto ext_path = (fs::path{tmp.temp_dir} / ".PIONEER/USBANLZ" /
+                     anlz_path.to_directory() / "ANLZ0000.EXT")
+                        .string();
+
+    auto tags = anlz::parse_pmai_file(ext_path);
+    const auto* pwv5 = anlz::find_tag(tags, "PWV5");
+    BOOST_REQUIRE(pwv5 != nullptr);
+
+    auto result = anlz::read_pwv5(pwv5->payload);
+    BOOST_REQUIRE_EQUAL(result.size(), 1);
+    // Writer: R=255>>5=7, G=128>>5=4, B=64>>5=2.
+    // Reader: 7<<5=224, 4<<5=128, 2<<5=64.
+    BOOST_TEST(result[0].low.value == 224);   // R
+    BOOST_TEST(result[0].mid.value == 128);   // G
+    BOOST_TEST(result[0].high.value == 64);   // B
+    BOOST_TEST(result[0].low.opacity == 255);
+}
+
+// =========================================================================
 // PQTZ reader tests
 // =========================================================================
 

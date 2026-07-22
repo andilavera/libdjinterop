@@ -999,6 +999,93 @@ BOOST_AUTO_TEST_CASE(read_pwv5__round_trip__matches)
 }
 
 // =========================================================================
+// PCO2 reader tests
+// =========================================================================
+
+BOOST_TEST_DECORATOR(
+    *utf::description("read_pco2() returns empty for empty payload"))
+BOOST_AUTO_TEST_CASE(read_pco2__empty_payload__empty)
+{
+    std::vector<uint8_t> empty;
+    auto result = anlz::read_pco2(empty, 44100.0);
+    BOOST_TEST(result.hot_cues.empty());
+    BOOST_TEST(result.loops.empty());
+}
+
+BOOST_TEST_DECORATOR(
+    *utf::description("read_pco2() reads 4 hot cues with colors from djay MULT .EXT"))
+BOOST_AUTO_TEST_CASE(read_pco2__djay_mult_hot_cues__correct)
+{
+    auto tags = anlz::parse_pmai_file(
+        source_root +
+        "PIONEER_DJAY_MULT/USBANLZ/P033/0002A217/ANLZ0000.EXT");
+
+    // Find the PCO2 tag with type=1 (hot cues).
+    const anlz::tag_section* pco2 = nullptr;
+    for (const auto& tag : tags)
+    {
+        if (tag.id == "PCO2" && tag.payload.size() >= 4 &&
+            tag.payload[3] == 1)
+        {
+            pco2 = &tag;
+            break;
+        }
+    }
+    BOOST_REQUIRE(pco2 != nullptr);
+
+    auto result = anlz::read_pco2(pco2->payload, 44100.0);
+    BOOST_TEST(result.loops.empty());
+
+    // 4 hot cues at slots 1-4 (0-based: 0-3).
+    BOOST_REQUIRE_EQUAL(result.hot_cues.size(), 4);
+    for (const auto& hc : result.hot_cues)
+        BOOST_TEST(hc.has_value());
+
+    // First hot cue: time_ms=12471, color r=255 g=0 b=69.
+    double expected0 = 12471.0 * 44100.0 / 1000.0;
+    BOOST_TEST(result.hot_cues[0]->sample_offset == expected0,
+               boost::test_tools::tolerance(1.0));
+    BOOST_TEST(result.hot_cues[0]->color.r == 255);
+    BOOST_TEST(result.hot_cues[0]->color.g == 0);
+    BOOST_TEST(result.hot_cues[0]->color.b == 69);
+
+    // Second: time_ms=13235, color r=255 g=117 b=0.
+    double expected1 = 13235.0 * 44100.0 / 1000.0;
+    BOOST_TEST(result.hot_cues[1]->sample_offset == expected1,
+               boost::test_tools::tolerance(1.0));
+    BOOST_TEST(result.hot_cues[1]->color.r == 255);
+    BOOST_TEST(result.hot_cues[1]->color.g == 117);
+    BOOST_TEST(result.hot_cues[1]->color.b == 0);
+
+    // Third: time_ms=31579, color r=0 g=112 b=255.
+    double expected2 = 31579.0 * 44100.0 / 1000.0;
+    BOOST_TEST(result.hot_cues[2]->sample_offset == expected2,
+               boost::test_tools::tolerance(1.0));
+    BOOST_TEST(result.hot_cues[2]->color.r == 0);
+    BOOST_TEST(result.hot_cues[2]->color.g == 112);
+    BOOST_TEST(result.hot_cues[2]->color.b == 255);
+
+    // Fourth: time_ms=36930, color r=255 g=186 b=0.
+    double expected3 = 36930.0 * 44100.0 / 1000.0;
+    BOOST_TEST(result.hot_cues[3]->sample_offset == expected3,
+               boost::test_tools::tolerance(1.0));
+    BOOST_TEST(result.hot_cues[3]->color.r == 255);
+    BOOST_TEST(result.hot_cues[3]->color.g == 186);
+    BOOST_TEST(result.hot_cues[3]->color.b == 0);
+}
+
+BOOST_TEST_DECORATOR(
+    *utf::description("read_pco2() returns empty for empty PCO2 container"))
+BOOST_AUTO_TEST_CASE(read_pco2__empty_container__empty)
+{
+    // PCO2 with type=1, count=0, unknown=0 (8-byte payload).
+    std::vector<uint8_t> payload = {0, 0, 0, 1, 0, 0, 0, 0};
+    auto result = anlz::read_pco2(payload, 44100.0);
+    BOOST_TEST(result.hot_cues.empty());
+    BOOST_TEST(result.loops.empty());
+}
+
+// =========================================================================
 // PQTZ reader tests
 // =========================================================================
 

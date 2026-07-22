@@ -111,6 +111,29 @@ struct pcob_cues
 pcob_cues read_pcob(
     const std::vector<uint8_t>& payload, double sample_rate);
 
+/// Read a PCO2 extended cue tag and return hot cues and/or loops.
+///
+/// PCO2 is a richer alternative to PCOB, storing labels (as UTF-16BE
+/// comments) and colors (RGBA) alongside cue positions.  When both PCOB
+/// and PCO2 are present in .EXT files, PCO2 should be preferred.
+///
+/// Parses the payload: type(u4) + count(u2) + unknown(u2) + entries.
+/// Each entry is a PCP2 sub-tag whose `len_entry` field gives its size.
+/// Fields per entry: hot_cue(u4), type(u1)+pad(3), time(u4),
+/// loop_time(u4), color_id(u1)+pad(7), loop_enum(u2), loop_denom(u2),
+/// len_comment(u4), comment(UTF-16BE, len_comment bytes),
+/// color_code(u1), color_r(u1), color_g(u1), color_b(u1).
+///
+/// For type=1 (hot cues), entries map to `hot_cues` by `hot_cue` index
+/// (1-based → 0-based slot).  For type=0 (memory), entries with
+/// type=2 (loop) map to `loops`.
+///
+/// \param payload Raw PCO2 payload bytes.
+/// \param sample_rate Sample rate in Hz for time_ms → sample conversion.
+/// \return Parsed hot cues and loops with labels and colors.
+pcob_cues read_pco2(
+    const std::vector<uint8_t>& payload, double sample_rate);
+
 // =========================================================================
 // Waveform tag readers
 // =========================================================================

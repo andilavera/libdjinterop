@@ -702,3 +702,138 @@ BOOST_AUTO_TEST_CASE(playlist_children__nested__ordered)
     BOOST_TEST(children[0] == pl1);
     BOOST_TEST(children[1] == pl2);
 }
+
+BOOST_TEST_DECORATOR(
+    *utf::description("track snapshot reads back ANLZ performance data"))
+BOOST_AUTO_TEST_CASE(snapshot__anlz_data__round_trips)
+{
+    temporary_directory tmp_loc;
+
+    // Create a track with performance data via a track_snapshot.
+    djinterop::track_snapshot snapshot;
+    snapshot.title = "ANLZ Test";
+    snapshot.relative_path = "/Contents/Test.flac";
+    snapshot.sample_rate = 44100.0;
+    snapshot.duration = std::chrono::milliseconds{300000};
+
+    // Beatgrid: 2 markers at 0 and 44100 samples (240 BPM).
+    snapshot.beatgrid = {
+        {0, 0.0},
+        {4, 44100.0},
+    };
+
+    // Two hot cues at 1s and 2s.
+    djinterop::hot_cue hc1{};
+    hc1.label = "Cue A";
+    hc1.sample_offset = 44100.0;
+    hc1.color = djinterop::pad_color{255, 0, 0, 255};
+    djinterop::hot_cue hc2{};
+    hc2.label = "Cue B";
+    hc2.sample_offset = 88200.0;
+    hc2.color = djinterop::pad_color{0, 255, 0, 255};
+    snapshot.hot_cues = {hc1, std::nullopt, hc2};
+
+    // One loop: 1s to 2s.
+    djinterop::loop lp{};
+    lp.label = "Loop 1";
+    lp.start_sample_offset = 44100.0;
+    lp.end_sample_offset = 88200.0;
+    lp.color = djinterop::pad_color{0, 0, 255, 255};
+    snapshot.loops = {lp};
+
+    // Simple 3-entry waveform.
+    snapshot.waveform = {
+        {{100, 255}, {150, 255}, {200, 255}},
+        {{50, 255}, {75, 255}, {100, 255}},
+        {{200, 255}, {100, 255}, {50, 255}},
+    };
+
+    {
+        auto lib = onelib::create_database(tmp_loc.temp_dir);
+        auto track = lib.create_track(snapshot);
+        BOOST_TEST(track.id() == 1);
+    }
+
+    // Load the database and read back the track's snapshot.
+    auto lib = onelib::load_database(tmp_loc.temp_dir);
+    auto tracks = lib.tracks();
+    BOOST_REQUIRE_EQUAL(tracks.size(), 1);
+
+    auto track = tracks[0];
+    auto read = track.snapshot();
+
+    // Beatgrid round-trips.
+    BOOST_REQUIRE_EQUAL(read.beatgrid.size(), 2);
+    BOOST_TEST(read.beatgrid[0].index == 0);
+    BOOST_TEST(read.beatgrid[0].sample_offset == 0.0,
+               boost::test_tools::tolerance(1.0));
+    BOOST_TEST(read.beatgrid[1].index == 1);
+    BOOST_TEST(read.beatgrid[1].sample_offset == 44100.0,
+               boost::test_tools::tolerance(1.0));
+
+    // Hot cues round-trip (positions only; labels/colors via PCOB).
+    BOOST_REQUIRE_EQUAL(read.hot_cues.size(), 3);
+    BOOST_TEST(read.hot_cues[0].has_value());
+    BOOST_TEST(read.hot_cues[1].has_value() == false);
+    BOOST_TEST(read.hot_cues[2].has_value());
+    BOOST_TEST(read.hot_cues[0]->sample_offset == 44100.0,
+               boost::test_tools::tolerance(1.0));
+    BOOST_TEST(read.hot_cues[2]->sample_offset == 88200.0,
+               boost::test_tools::tolerance(1.0));
+
+    // Loops round-trip.
+    BOOST_REQUIRE_EQUAL(read.loops.size(), 1);
+    BOOST_TEST(read.loops[0]->start_sample_offset == 44100.0,
+               boost::test_tools::tolerance(1.0));
+    BOOST_TEST(read.loops[0]->end_sample_offset == 88200.0,
+               boost::test_tools::tolerance(1.0));
+
+    // Waveform round-trips (PWV7 from .2EX has exact band values).
+    BOOST_REQUIRE_EQUAL(read.waveform.size(), 3);
+    BOOST_TEST(read.waveform[0].low.value == 100);
+    BOOST_TEST(read.waveform[0].mid.value == 150);
+    BOOST_TEST(read.waveform[0].high.value == 200);
+    BOOST_TEST(read.waveform[1].low.value == 50);
+    BOOST_TEST(read.waveform[1].mid.value == 75);
+    BOOST_TEST(read.waveform[1].high.value == 100);
+    BOOST_TEST(read.waveform[2].low.value == 200);
+    BOOST_TEST(read.waveform[2].mid.value == 100);
+    BOOST_TEST(read.waveform[2].high.value == 50);
+}
+
+BOOST_TEST_DECORATOR(
+    *utf::description("snapshot() handles missing ANLZ files gracefully"))
+BOOST_AUTO_TEST_CASE(snapshot__no_anlz_files__empty_perf_data)
+{
+    temporary_directory tmp_loc;
+
+    // Create a track with metadata only (no performance data).
+    djinterop::track_snapshot snapshot;
+    snapshot.title = "No ANLZ";
+    snapshot.relative_path = "/Contents/NoAnlz.flac";
+    snapshot.sample_rate = 44100.0;
+
+    {
+        auto lib = onelib::create_database(tmp_loc.temp_dir);
+        lib.create_track(snapshot);
+    }
+
+    // Delete the ANLZ files to simulate missing sidecars.
+    namespace fs = std::filesystem;
+    auto anlz_dir = fs::path{tmp_loc.temp_dir} / ".PIONEER/USBANLZ";
+    if (fs::exists(anlz_dir))
+        fs::remove_all(anlz_dir);
+
+    // Load and read back — should not throw, perf data should be empty.
+    auto lib = onelib::load_database(tmp_loc.temp_dir);
+    auto tracks = lib.tracks();
+    BOOST_REQUIRE_EQUAL(tracks.size(), 1);
+
+    auto track = tracks[0];
+    auto read = track.snapshot();
+    BOOST_TEST(read.beatgrid.empty());
+    BOOST_TEST(read.hot_cues.empty());
+    BOOST_TEST(read.loops.empty());
+    BOOST_TEST(read.waveform.empty());
+    BOOST_TEST(!read.main_cue.has_value());
+}

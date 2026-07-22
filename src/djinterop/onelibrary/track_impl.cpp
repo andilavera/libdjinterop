@@ -30,6 +30,7 @@
 #include "../util/sqlite_transaction.hpp"
 #include <djinterop/onelibrary/album_table.hpp>
 #include "anlz/anlz_writer.hpp"
+#include "anlz/anlz_reader.hpp"
 #include "anlz/hash.hpp"
 #include <djinterop/onelibrary/artist_table.hpp>
 #include "content_table.hpp"
@@ -94,8 +95,154 @@ std::optional<musical_key> resolve_key(
     return key_name_to_enum(name);
 }
 
+// Load ANLZ performance data from sidecar files and merge into a snapshot.
+//
+// Parses .DAT, .EXT, and .2EX files at the hash-derived path under
+// .PIONEER/USBANLZ/.  Missing files are silently skipped.
+//
+// Tag priority:
+//   beatgrid  — PQTZ from .DAT
+//   hot_cues  — PCO2 from .EXT (preferred) or PCOB from .DAT
+//   loops     — PCO2 from .EXT (preferred) or PCOB from .DAT
+//   waveform  — PWV6/PWV7 from .2EX (preferred) or PWAV from .DAT
+void load_anlz_data(
+    const std::string& volume_root, const content_row& row,
+    track_snapshot& s)
+{
+    namespace fs = std::filesystem;
+
+    // Derive the ANLZ directory from the audio path.
+    auto anlz_path = anlz::compute_anlz_path(row.path);
+    auto dir = fs::path{volume_root} / ".PIONEER/USBANLZ" /
+               anlz_path.to_directory();
+
+    double sr = row.sampling_rate > 0
+                   ? static_cast<double>(row.sampling_rate)
+                   : 44100.0;
+
+    // ---- .DAT: beatgrid, basic hot_cues/loops, mono waveform ----
+    bool have_cues = false;
+    anlz::pcob_cues cues;
+    auto dat_path = (dir / "ANLZ0000.DAT").string();
+    if (fs::exists(dat_path))
+    {
+        try
+        {
+            auto tags = anlz::parse_pmai_file(dat_path);
+
+            if (const auto* pqtz = anlz::find_tag(tags, "PQTZ"))
+                s.beatgrid = anlz::read_pqtz(pqtz->payload, sr);
+
+            // PCOB hot cues (type=1) and memory loops (type=0).
+            for (const auto& tag : tags)
+            {
+                if (tag.id != "PCOB" || tag.payload.size() < 4)
+                    continue;
+                uint32_t ctype = anlz::read_u32_be(tag.payload.data());
+                if (ctype == 1)
+                {
+                    auto c = anlz::read_pcob(tag.payload, sr);
+                    if (!c.hot_cues.empty())
+                    {
+                        cues.hot_cues = std::move(c.hot_cues);
+                        have_cues = true;
+                    }
+                }
+                else if (ctype == 0)
+                {
+                    auto c = anlz::read_pcob(tag.payload, sr);
+                    if (!c.loops.empty())
+                    {
+                        cues.loops = std::move(c.loops);
+                        have_cues = true;
+                    }
+                }
+            }
+
+            // Mono waveform as fallback.
+            if (s.waveform.empty())
+            {
+                if (const auto* pwav = anlz::find_tag(tags, "PWAV"))
+                    s.waveform = anlz::read_pwav(pwav->payload);
+            }
+        }
+        catch (const std::runtime_error&)
+        {
+            // Corrupt or unreadable file — skip.
+        }
+    }
+
+    // ---- .EXT: PCO2 (preferred cues), color waveforms ----
+    auto ext_path = (dir / "ANLZ0000.EXT").string();
+    if (fs::exists(ext_path))
+    {
+        try
+        {
+            auto tags = anlz::parse_pmai_file(ext_path);
+
+            // PCO2 hot cues (type=1) and memory loops (type=0).
+            for (const auto& tag : tags)
+            {
+                if (tag.id != "PCO2" || tag.payload.size() < 4)
+                    continue;
+                uint32_t ctype = anlz::read_u32_be(tag.payload.data());
+                if (ctype == 1)
+                {
+                    auto c = anlz::read_pco2(tag.payload, sr);
+                    if (!c.hot_cues.empty())
+                    {
+                        cues.hot_cues = std::move(c.hot_cues);
+                        have_cues = true;
+                    }
+                }
+                else if (ctype == 0)
+                {
+                    auto c = anlz::read_pco2(tag.payload, sr);
+                    if (!c.loops.empty())
+                    {
+                        cues.loops = std::move(c.loops);
+                        have_cues = true;
+                    }
+                }
+            }
+        }
+        catch (const std::runtime_error&)
+        {
+            // Corrupt or unreadable file — skip.
+        }
+    }
+
+    // ---- .2EX: 3-band waveforms (preferred) ----
+    auto twoex_path = (dir / "ANLZ0000.2EX").string();
+    if (fs::exists(twoex_path))
+    {
+        try
+        {
+            auto tags = anlz::parse_pmai_file(twoex_path);
+
+            // Prefer PWV7 (detail) over PWV6 (preview).
+            if (const auto* pwv7 = anlz::find_tag(tags, "PWV7"))
+                s.waveform = anlz::read_pwv7(pwv7->payload);
+            else if (const auto* pwv6 = anlz::find_tag(tags, "PWV6"))
+                s.waveform = anlz::read_pwv6(pwv6->payload);
+        }
+        catch (const std::runtime_error&)
+        {
+            // Corrupt or unreadable file — skip.
+        }
+    }
+
+    // Merge parsed cues into snapshot.
+    if (have_cues)
+    {
+        s.hot_cues = std::move(cues.hot_cues);
+        s.loops = std::move(cues.loops);
+    }
+}
+
 // Convert a content_row to a track_snapshot.
 track_snapshot to_snapshot(
+    const std::string& volume_root,
     sqlite::database& db, const content_row& row)
 {
     track_snapshot s;
@@ -138,7 +285,7 @@ track_snapshot to_snapshot(
             : std::nullopt;
     s.key = resolve_key(db, row.key_id);
 
-    // ANLZ-only fields are returned empty.
+    // ANLZ-only fields are loaded from sidecar files.
     s.average_loudness = std::nullopt;
     s.beatgrid.clear();
     s.hot_cues.clear();
@@ -146,6 +293,8 @@ track_snapshot to_snapshot(
     s.waveform.clear();
     s.main_cue = std::nullopt;
     s.last_played_at = std::nullopt;
+
+    load_anlz_data(volume_root, row, s);
 
     return s;
 }
@@ -223,7 +372,7 @@ track_snapshot track_impl::snapshot() const
     auto row = ct.get(id());
     if (!row)
         throw djinterop::track_deleted{id()};
-    return to_snapshot(context_->db, *row);
+    return to_snapshot(context_->directory, context_->db, *row);
 }
 
 void track_impl::update(const track_snapshot& snapshot)

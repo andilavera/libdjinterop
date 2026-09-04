@@ -155,6 +155,72 @@ std::optional<int64_t> album_id_for(
     return id;
 }
 
+/// Upserts a genre by name and returns the id.
+std::optional<int64_t> genre_id_for(
+    onelibrary_context& context, const std::optional<std::string>& genre)
+{
+    if (!genre || genre->empty())
+        return std::nullopt;
+
+    int64_t id = 0;
+    context.db << "SELECT COALESCE((SELECT genre_id FROM genre WHERE name = "
+                  "?), 0);"
+               << *genre >>
+        id;
+    if (id != 0)
+        return id;
+
+    context.db << "SELECT COALESCE(MAX(genre_id), 0) + 1 FROM genre;" >> id;
+    context.db << "INSERT INTO genre (genre_id, name) VALUES (?, ?);" << id
+               << *genre;
+
+    return id;
+}
+
+/// Upserts a label by name and returns the id.
+std::optional<int64_t> label_id_for(
+    onelibrary_context& context, const std::optional<std::string>& label)
+{
+    if (!label || label->empty())
+        return std::nullopt;
+
+    int64_t id = 0;
+    context.db << "SELECT COALESCE((SELECT label_id FROM label WHERE name = "
+                  "?), 0);"
+               << *label >>
+        id;
+    if (id != 0)
+        return id;
+
+    context.db << "SELECT COALESCE(MAX(label_id), 0) + 1 FROM label;" >> id;
+    context.db << "INSERT INTO label (label_id, name) VALUES (?, ?);" << id
+               << *label;
+
+    return id;
+}
+
+/// Upserts a key by name and returns the id.
+std::optional<int64_t> key_id_for(
+    onelibrary_context& context, const std::optional<std::string>& key)
+{
+    if (!key || key->empty())
+        return std::nullopt;
+
+    int64_t id = 0;
+    context.db << "SELECT COALESCE((SELECT key_id FROM \"key\" WHERE name = "
+                  "?), 0);"
+               << *key >>
+        id;
+    if (id != 0)
+        return id;
+
+    context.db << "SELECT COALESCE(MAX(key_id), 0) + 1 FROM \"key\";" >> id;
+    context.db << "INSERT INTO \"key\" (key_id, name) VALUES (?, ?);" << id
+               << *key;
+
+    return id;
+}
+
 }  // anonymous namespace
 
 content_table::content_table(std::shared_ptr<onelibrary_context> context) :
@@ -350,6 +416,26 @@ void content_table::set_album(
                         *context_, album, artist_id, image_id, is_complation,
                         name_for_search)
                  << id;
+}
+
+void content_table::set_genre(
+    int64_t id, const std::optional<std::string>& genre)
+{
+    context_->db << "UPDATE content SET genre_id = ? WHERE content_id = ?;"
+                 << genre_id_for(*context_, genre) << id;
+}
+
+void content_table::set_label(
+    int64_t id, const std::optional<std::string>& label)
+{
+    context_->db << "UPDATE content SET label_id = ? WHERE content_id = ?;"
+                 << label_id_for(*context_, label) << id;
+}
+
+void content_table::set_key(int64_t id, const std::optional<std::string>& key)
+{
+    context_->db << "UPDATE content SET key_id = ? WHERE content_id = ?;"
+                 << key_id_for(*context_, key) << id;
 }
 
 }  // namespace djinterop::onelibrary::v1

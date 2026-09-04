@@ -24,6 +24,7 @@
 
 #include <djinterop/onelibrary/artist_table.hpp>
 #include <djinterop/onelibrary/album_table.hpp>
+#include <djinterop/onelibrary/reference_tables.hpp>
 #include "onelibrary_context.hpp"
 #include "schema.hpp"
 
@@ -110,7 +111,10 @@ bool onelibrary::exists(const std::string& directory)
 onelibrary::onelibrary(std::shared_ptr<onelibrary_context> context) :
     context_{std::move(context)},
     artist_{std::make_unique<artist_table>(context_)},
-    album_{std::make_unique<album_table>(context_)}
+    album_{std::make_unique<album_table>(context_)},
+    genre_{std::make_unique<genre_table>(context_)},
+    label_{std::make_unique<label_table>(context_)},
+    key_{std::make_unique<key_table>(context_)}
 {
 }
 

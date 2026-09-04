@@ -37,6 +37,13 @@ not held in the database at all, as rekordbox leaves them in the ANLZ files
 beside it.  The format is also documented under the name Device Library Plus.
 The database is encrypted with SQLCipher, so reading it needs the library built
 with `-DEXPERIMENTAL_ENABLE_SQLCIPHER=ON -DSYSTEM_SQLITE=OFF`, and OpenSSL.
+rekordbox encrypts every database with the same passphrase, which lives here as
+a placeholder for now:
+
+    r8gddnr4k847830ar6cqzbkk0el6qytmb3trbbx805jm74vez64i5o8fnrqryqls
+
+The library supplies no default, so pass it to `load_database` or
+`create_database`.
 
 What is not supported (yet):
 

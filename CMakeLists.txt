@@ -215,6 +215,7 @@ add_library(
     src/djinterop/onelibrary/onelibrary.cpp
     src/djinterop/onelibrary/schema.cpp
     src/djinterop/onelibrary/onelibrary_context.hpp
+    src/djinterop/onelibrary/artist_table.cpp
 )
 
 set_target_properties(DjInterop PROPERTIES
@@ -375,6 +376,7 @@ install(FILES
     DESTINATION "${DJINTEROP_INSTALL_INCLUDEDIR}/engine/v3")
 install(FILES
     include/djinterop/onelibrary/onelibrary.hpp
+    include/djinterop/onelibrary/artist_table.hpp
     DESTINATION "${DJINTEROP_INSTALL_INCLUDEDIR}/onelibrary")
 
 

@@ -99,6 +99,30 @@ std::optional<std::string> read_text(
     return non_empty(read_column<std::string>(context, sql, id));
 }
 
+/// Resolve an artist name to an identifier, adding the artist when it is new.
+///
+/// The schema declares no UNIQUE constraint on the name, so this looks first.
+std::optional<int64_t> artist_id_for(
+    onelibrary_context& context, const std::optional<std::string>& artist)
+{
+    if (!artist || artist->empty())
+        return std::nullopt;
+
+    int64_t id = 0;
+    context.db << "SELECT COALESCE((SELECT artist_id FROM artist WHERE name = "
+                  "?), 0);"
+               << *artist >>
+        id;
+    if (id != 0)
+        return id;
+
+    context.db << "SELECT COALESCE(MAX(artist_id), 0) + 1 FROM artist;" >> id;
+    context.db << "INSERT INTO artist (artist_id, name) VALUES (?, ?);" << id
+               << *artist;
+
+    return id;
+}
+
 }  // anonymous namespace
 
 content_table::content_table(std::shared_ptr<onelibrary_context> context) :
@@ -274,6 +298,14 @@ std::optional<std::string> content_table::get_analysis_path(int64_t id) const
 std::optional<int64_t> content_table::get_color_id(int64_t id) const
 {
     return read_column<int64_t>(*context_, content_column("c.color_id"), id);
+}
+
+void content_table::set_artist(
+    int64_t id, const std::optional<std::string>& artist)
+{
+    context_->db
+        << "UPDATE content SET artist_id_artist = ? WHERE content_id = ?;"
+        << artist_id_for(*context_, artist) << id;
 }
 
 }  // namespace djinterop::onelibrary::v1

@@ -175,6 +175,11 @@ public:
     [[nodiscard]] std::optional<int64_t> get_color_id(int64_t id) const;
     /// @}
 
+    /// Set the `artist` of a content row, adding the artist when it is new.
+    ///
+    /// An unset or empty artist clears the reference.
+    void set_artist(int64_t id, const std::optional<std::string>& artist);
+
 private:
     std::shared_ptr<onelibrary_context> context_;
 };

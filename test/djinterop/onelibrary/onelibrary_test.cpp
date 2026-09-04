@@ -356,3 +356,57 @@ BOOST_AUTO_TEST_CASE(artist__find_id__round_trips)
     BOOST_TEST(lib.artist().find_id("Find Me").value() == id);
     BOOST_TEST(!lib.artist().find_id("Missing").has_value());
 }
+
+BOOST_TEST_DECORATOR(
+    *utf::description("album_table add() returns a new id"))
+BOOST_AUTO_TEST_CASE(album__add__returns_id)
+{
+    temporary_directory tmp_loc;
+    auto lib = onelib::onelibrary::create(tmp_loc.temp_dir);
+
+    auto id = lib.album().add("Test Album");
+    BOOST_TEST(id > 0);
+}
+
+BOOST_TEST_DECORATOR(
+    *utf::description("album_table add() deduplicates by name"))
+BOOST_AUTO_TEST_CASE(album__add__same_name__deduplicates)
+{
+    temporary_directory tmp_loc;
+    auto lib = onelib::onelibrary::create(tmp_loc.temp_dir);
+
+    auto id1 = lib.album().add("Same Album");
+    auto id2 = lib.album().add("Same Album");
+    BOOST_TEST(id1 == id2);
+
+    sqlite3* db = open_for_verify(tmp_loc.temp_dir);
+    BOOST_TEST(query_int(db, "SELECT count(*) FROM album") == 1);
+    close_for_verify(db);
+}
+
+BOOST_TEST_DECORATOR(
+    *utf::description("album_table add() persists artist reference"))
+BOOST_AUTO_TEST_CASE(album__add__with_artist__persists)
+{
+    temporary_directory tmp_loc;
+    auto lib = onelib::onelibrary::create(tmp_loc.temp_dir);
+
+    auto artist_id = lib.artist().add("Album Artist");
+    lib.album().add("Album By Artist", artist_id);
+
+    sqlite3* db = open_for_verify(tmp_loc.temp_dir);
+    BOOST_TEST(query_int(db, "SELECT artist_id FROM album") == artist_id);
+    close_for_verify(db);
+}
+
+BOOST_TEST_DECORATOR(
+    *utf::description("album_table find_id() round-trips added albums"))
+BOOST_AUTO_TEST_CASE(album__find_id__round_trips)
+{
+    temporary_directory tmp_loc;
+    auto lib = onelib::onelibrary::create(tmp_loc.temp_dir);
+
+    auto id = lib.album().add("Find Me");
+    BOOST_TEST(lib.album().find_id("Find Me").value() == id);
+    BOOST_TEST(!lib.album().find_id("Missing").has_value());
+}

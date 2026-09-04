@@ -410,3 +410,63 @@ BOOST_AUTO_TEST_CASE(album__find_id__round_trips)
     BOOST_TEST(lib.album().find_id("Find Me").value() == id);
     BOOST_TEST(!lib.album().find_id("Missing").has_value());
 }
+
+BOOST_TEST_DECORATOR(
+    *utf::description("genre_table add() deduplicates and find_id() round-trips"))
+BOOST_AUTO_TEST_CASE(genre__add__deduplicates_and_finds)
+{
+    temporary_directory tmp_loc;
+    auto lib = onelib::onelibrary::create(tmp_loc.temp_dir);
+
+    auto id1 = lib.genre().add("Techno");
+    auto id2 = lib.genre().add("Techno");
+    BOOST_TEST(id1 > 0);
+    BOOST_TEST(id1 == id2);
+
+    sqlite3* db = open_for_verify(tmp_loc.temp_dir);
+    BOOST_TEST(query_int(db, "SELECT count(*) FROM genre") == 1);
+    close_for_verify(db);
+
+    BOOST_TEST(lib.genre().find_id("Techno").value() == id1);
+    BOOST_TEST(!lib.genre().find_id("Missing").has_value());
+}
+
+BOOST_TEST_DECORATOR(
+    *utf::description("label_table add() deduplicates and find_id() round-trips"))
+BOOST_AUTO_TEST_CASE(label__add__deduplicates_and_finds)
+{
+    temporary_directory tmp_loc;
+    auto lib = onelib::onelibrary::create(tmp_loc.temp_dir);
+
+    auto id1 = lib.label().add("Test Label");
+    auto id2 = lib.label().add("Test Label");
+    BOOST_TEST(id1 > 0);
+    BOOST_TEST(id1 == id2);
+
+    sqlite3* db = open_for_verify(tmp_loc.temp_dir);
+    BOOST_TEST(query_int(db, "SELECT count(*) FROM label") == 1);
+    close_for_verify(db);
+
+    BOOST_TEST(lib.label().find_id("Test Label").value() == id1);
+    BOOST_TEST(!lib.label().find_id("Missing").has_value());
+}
+
+BOOST_TEST_DECORATOR(
+    *utf::description("key_table add() deduplicates and find_id() round-trips"))
+BOOST_AUTO_TEST_CASE(key__add__deduplicates_and_finds)
+{
+    temporary_directory tmp_loc;
+    auto lib = onelib::onelibrary::create(tmp_loc.temp_dir);
+
+    auto id1 = lib.key().add("Am");
+    auto id2 = lib.key().add("Am");
+    BOOST_TEST(id1 > 0);
+    BOOST_TEST(id1 == id2);
+
+    sqlite3* db = open_for_verify(tmp_loc.temp_dir);
+    BOOST_TEST(query_int(db, "SELECT count(*) FROM key") == 1);
+    close_for_verify(db);
+
+    BOOST_TEST(lib.key().find_id("Am").value() == id1);
+    BOOST_TEST(!lib.key().find_id("Missing").has_value());
+}

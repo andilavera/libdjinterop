@@ -123,6 +123,38 @@ std::optional<int64_t> artist_id_for(
     return id;
 }
 
+/// Resolve an album name to an identifier, adding the album when it is new.
+///
+/// The schema declares no UNIQUE constraint on the name, so this looks first.
+/// No identifier results when the name is empty.
+std::optional<int64_t> album_id_for(
+    onelibrary_context& context, const std::string& album,
+    std::optional<int64_t> artist_id, std::optional<int64_t> image_id,
+    std::optional<int64_t> is_complation,
+    std::optional<std::string> name_for_search)
+{
+    if (album.empty())
+        return std::nullopt;
+
+    int64_t id = 0;
+    context.db << "SELECT COALESCE((SELECT album_id FROM album WHERE name = "
+                  "?), 0);"
+               << album >>
+        id;
+    if (id != 0)
+        return id;
+
+    context.db << "SELECT COALESCE(MAX(album_id), 0) + 1 FROM album;" >> id;
+    context.db
+        << "INSERT INTO album "
+           "(album_id, name, artist_id, image_id, isComplation, nameForSearch) "
+           "VALUES (?, ?, ?, ?, ?, ?);"
+        << id << album << artist_id << image_id << is_complation
+        << name_for_search;
+
+    return id;
+}
+
 }  // anonymous namespace
 
 content_table::content_table(std::shared_ptr<onelibrary_context> context) :
@@ -306,6 +338,18 @@ void content_table::set_artist(
     context_->db
         << "UPDATE content SET artist_id_artist = ? WHERE content_id = ?;"
         << artist_id_for(*context_, artist) << id;
+}
+
+void content_table::set_album(
+    int64_t id, const std::string& album, std::optional<int64_t> artist_id,
+    std::optional<int64_t> image_id, std::optional<int64_t> is_complation,
+    std::optional<std::string> name_for_search)
+{
+    context_->db << "UPDATE content SET album_id = ? WHERE content_id = ?;"
+                 << album_id_for(
+                        *context_, album, artist_id, image_id, is_complation,
+                        name_for_search)
+                 << id;
 }
 
 }  // namespace djinterop::onelibrary::v1

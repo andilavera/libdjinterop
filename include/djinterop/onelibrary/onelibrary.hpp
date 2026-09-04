@@ -48,6 +48,37 @@ constexpr const char* default_key =
 /// Device Library Plus schema version.
 constexpr const char* db_version = "1000";
 
+/// Simple track metadata for adding a track to a OneLibrary export.
+struct track_info
+{
+    std::string title;
+    std::string artist;
+    std::optional<std::string> album;
+    std::optional<std::string> album_artist;
+    std::optional<std::string> genre;
+    std::optional<std::string> label;
+    std::optional<std::string> key;
+    std::optional<std::string> composer;
+    std::optional<std::string> lyricist;
+    std::optional<std::string> remixer;
+
+    double bpm = 0;                    ///< Beats per minute
+    int64_t duration_secs = 0;         ///< Duration in seconds
+    int64_t track_number = 0;
+    int64_t disc_number = 0;
+    int64_t bitrate = 0;               ///< kbps
+    int64_t bit_depth = 0;
+    int64_t sample_rate = 0;
+    int64_t file_size_bytes = 0;
+    int64_t file_type = 0;             ///< SPEC §2.7.1 (5 = FLAC)
+    std::optional<std::string> isrc;
+    std::optional<int64_t> year;
+    int64_t rating = 0;                ///< 0-5
+
+    /// Volume-relative path to the audio file, e.g. `/Contents/Track.flac`.
+    std::string relative_path;
+};
+
 /// Represents a Device Library Plus (OneLibrary) export.
 ///
 /// Analogous to `engine::v3::engine_library`.

@@ -191,6 +191,21 @@ public:
         std::optional<int64_t> is_complation = std::nullopt,
         std::optional<std::string> name_for_search = std::nullopt);
 
+    /// Set the `genre` of a content row, adding the genre when it is new.
+    ///
+    /// An unset or empty genre clears the reference.
+    void set_genre(int64_t id, const std::optional<std::string>& genre);
+
+    /// Set the `label` of a content row, adding the label when it is new.
+    ///
+    /// An unset or empty label clears the reference.
+    void set_label(int64_t id, const std::optional<std::string>& label);
+
+    /// Set the `key` of a content row, adding the key when it is new.
+    ///
+    /// An unset or empty key clears the reference.
+    void set_key(int64_t id, const std::optional<std::string>& key);
+
 private:
     std::shared_ptr<onelibrary_context> context_;
 };

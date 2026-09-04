@@ -180,6 +180,17 @@ public:
     /// An unset or empty artist clears the reference.
     void set_artist(int64_t id, const std::optional<std::string>& artist);
 
+    /// Set the `album` of a content row, adding the album when it is new.
+    ///
+    /// An empty album clears the reference.  The remaining parameters describe
+    /// the album row to add.
+    void set_album(
+        int64_t id, const std::string& album,
+        std::optional<int64_t> artist_id = std::nullopt,
+        std::optional<int64_t> image_id = std::nullopt,
+        std::optional<int64_t> is_complation = std::nullopt,
+        std::optional<std::string> name_for_search = std::nullopt);
+
 private:
     std::shared_ptr<onelibrary_context> context_;
 };

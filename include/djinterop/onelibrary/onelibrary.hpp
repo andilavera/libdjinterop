@@ -27,11 +27,13 @@
 #include <djinterop/config.hpp>
 
 #include <djinterop/onelibrary/artist_table.hpp>
+#include <djinterop/onelibrary/album_table.hpp>
 
 namespace djinterop::onelibrary
 {
 struct onelibrary_context;
 class artist_table;
+class album_table;
 
 /// Known static passphrase for Device Library Plus databases.
 constexpr const char* default_key =
@@ -70,11 +72,15 @@ public:
     /// Gets a class representing the artist table.
     artist_table artist() const noexcept { return artist_table{context_}; }
 
+    /// Gets a class representing the album table.
+    album_table album() const noexcept { return album_table{context_}; }
+
 private:
     explicit onelibrary(std::shared_ptr<onelibrary_context> context);
 
     std::shared_ptr<onelibrary_context> context_;
     std::unique_ptr<artist_table> artist_;
+    std::unique_ptr<album_table> album_;
 };
 
 }  // namespace djinterop::onelibrary

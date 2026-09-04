@@ -23,6 +23,7 @@
 #include <sqlite_modern_cpp.h>
 
 #include <djinterop/onelibrary/artist_table.hpp>
+#include <djinterop/onelibrary/album_table.hpp>
 #include "onelibrary_context.hpp"
 #include "schema.hpp"
 
@@ -108,7 +109,8 @@ bool onelibrary::exists(const std::string& directory)
 
 onelibrary::onelibrary(std::shared_ptr<onelibrary_context> context) :
     context_{std::move(context)},
-    artist_{std::make_unique<artist_table>(context_)}
+    artist_{std::make_unique<artist_table>(context_)},
+    album_{std::make_unique<album_table>(context_)}
 {
 }
 

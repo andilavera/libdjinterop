@@ -470,6 +470,7 @@ if (Boost_FOUND AND Boost_filesystem_FOUND AND Boost_system_FOUND)
     add_djinterop_test(engine/v3/ information_table_test)
     add_djinterop_test(engine/v3/ performance_data_table_test)
     add_djinterop_test(engine/v3/ track_table_test)
+    add_djinterop_test(onelibrary/ onelibrary_test)
 
 else()
     message(STATUS

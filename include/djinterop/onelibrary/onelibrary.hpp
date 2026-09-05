@@ -38,6 +38,8 @@ class album_table;
 class genre_table;
 class label_table;
 class key_table;
+class content_table;
+struct content_row;
 
 /// Known static passphrase for Device Library Plus databases.
 constexpr const char* default_key =
@@ -97,6 +99,7 @@ private:
     std::unique_ptr<genre_table> genre_;
     std::unique_ptr<label_table> label_;
     std::unique_ptr<key_table> key_;
+    std::unique_ptr<content_table> content_;
 };
 
 }  // namespace djinterop::onelibrary

@@ -25,6 +25,7 @@
 #include <djinterop/onelibrary/artist_table.hpp>
 #include <djinterop/onelibrary/album_table.hpp>
 #include <djinterop/onelibrary/reference_tables.hpp>
+#include "content_table.hpp"
 #include "onelibrary_context.hpp"
 #include "schema.hpp"
 
@@ -114,7 +115,8 @@ onelibrary::onelibrary(std::shared_ptr<onelibrary_context> context) :
     album_{std::make_unique<album_table>(context_)},
     genre_{std::make_unique<genre_table>(context_)},
     label_{std::make_unique<label_table>(context_)},
-    key_{std::make_unique<key_table>(context_)}
+    key_{std::make_unique<key_table>(context_)},
+    content_{std::make_unique<content_table>(context_)}
 {
 }
 

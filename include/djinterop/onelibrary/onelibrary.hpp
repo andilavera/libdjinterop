@@ -23,6 +23,7 @@
 #include <memory>
 #include <optional>
 #include <string>
+#include <vector>
 
 #include <djinterop/config.hpp>
 
@@ -96,6 +97,22 @@ public:
 
     /// Destructor.
     ~onelibrary();
+
+    /// Add a track to the library.
+    int64_t add_track(const track_info& track);
+
+    /// Get a track by id.
+    std::optional<track_info> get_track(int64_t id) const;
+
+    /// Get all track ids in the library.
+    std::vector<int64_t> track_ids() const;
+
+    /// Remove a track by id.
+    void remove_track(int64_t id);
+
+    /// Get a track by its relative path, if it exists.
+    [[nodiscard]] std::optional<track_info> get_track_by_relative_path(
+        const std::string& relative_path) const;
 
     /// Get the volume root directory.
     std::string directory() const;

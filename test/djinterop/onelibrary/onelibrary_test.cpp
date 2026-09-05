@@ -317,3 +317,42 @@ BOOST_AUTO_TEST_CASE(create__seed_tables__match_reference_fixture)
     close_for_verify(created);
     close_for_verify(ref);
 }
+
+BOOST_TEST_DECORATOR(
+    *utf::description("artist_table add() returns a new id"))
+BOOST_AUTO_TEST_CASE(artist__add__returns_id)
+{
+    temporary_directory tmp_loc;
+    auto lib = onelib::onelibrary::create(tmp_loc.temp_dir);
+
+    auto id = lib.artist().add("Test Artist");
+    BOOST_TEST(id > 0);
+}
+
+BOOST_TEST_DECORATOR(
+    *utf::description("artist_table add() deduplicates by name"))
+BOOST_AUTO_TEST_CASE(artist__add__same_name__deduplicates)
+{
+    temporary_directory tmp_loc;
+    auto lib = onelib::onelibrary::create(tmp_loc.temp_dir);
+
+    auto id1 = lib.artist().add("Same Artist");
+    auto id2 = lib.artist().add("Same Artist");
+    BOOST_TEST(id1 == id2);
+
+    sqlite3* db = open_for_verify(tmp_loc.temp_dir);
+    BOOST_TEST(query_int(db, "SELECT count(*) FROM artist") == 1);
+    close_for_verify(db);
+}
+
+BOOST_TEST_DECORATOR(
+    *utf::description("artist_table find_id() round-trips added artists"))
+BOOST_AUTO_TEST_CASE(artist__find_id__round_trips)
+{
+    temporary_directory tmp_loc;
+    auto lib = onelib::onelibrary::create(tmp_loc.temp_dir);
+
+    auto id = lib.artist().add("Find Me");
+    BOOST_TEST(lib.artist().find_id("Find Me").value() == id);
+    BOOST_TEST(!lib.artist().find_id("Missing").has_value());
+}

@@ -470,3 +470,182 @@ BOOST_AUTO_TEST_CASE(key__add__deduplicates_and_finds)
     BOOST_TEST(lib.key().find_id("Am").value() == id1);
     BOOST_TEST(!lib.key().find_id("Missing").has_value());
 }
+
+BOOST_TEST_DECORATOR(
+    *utf::description("add_track() adds a track with resolved references"))
+BOOST_AUTO_TEST_CASE(add_track__valid__adds_content)
+{
+    temporary_directory tmp_loc;
+    auto lib = onelib::onelibrary::create(tmp_loc.temp_dir);
+
+    onelib::track_info track;
+    track.title = "Test Track";
+    track.artist = "Test Artist";
+    track.album = "Test Album";
+    track.genre = "Test Genre";
+    track.bpm = 128.5;
+    track.duration_secs = 300;
+    track.file_type = 5;  // FLAC
+    track.bitrate = 1024;
+    track.sample_rate = 44100;
+    track.relative_path = "/Contents/Test Track.flac";
+
+    int64_t id = lib.add_track(track);
+    BOOST_TEST(id > 0);
+    BOOST_TEST(lib.track_count() == 1);
+
+    // Verify via raw SQL.
+    sqlite3* db = open_for_verify(tmp_loc.temp_dir);
+    BOOST_TEST(query_int(db, "SELECT count(*) FROM content") == 1);
+    BOOST_TEST(query_int(db, "SELECT count(*) FROM artist") == 1);
+    BOOST_TEST(query_int(db, "SELECT count(*) FROM album") == 1);
+    BOOST_TEST(query_int(db, "SELECT count(*) FROM genre") == 1);
+    BOOST_TEST(query_text(db, "SELECT title FROM content WHERE content_id = 1") == "Test Track");
+    BOOST_TEST(query_text(db, "SELECT name FROM artist WHERE artist_id = 1") == "Test Artist");
+    close_for_verify(db);
+}
+
+BOOST_TEST_DECORATOR(
+    *utf::description("add_track() deduplicates reference rows"))
+BOOST_AUTO_TEST_CASE(add_track__same_artist__deduplicates)
+{
+    temporary_directory tmp_loc;
+    auto lib = onelib::onelibrary::create(tmp_loc.temp_dir);
+
+    onelib::track_info t1;
+    t1.title = "Track 1";
+    t1.artist = "Same Artist";
+    t1.relative_path = "/Contents/Track1.flac";
+    lib.add_track(t1);
+
+    onelib::track_info t2;
+    t2.title = "Track 2";
+    t2.artist = "Same Artist";
+    t2.relative_path = "/Contents/Track2.flac";
+    lib.add_track(t2);
+
+    sqlite3* db = open_for_verify(tmp_loc.temp_dir);
+    BOOST_TEST(query_int(db, "SELECT count(*) FROM content") == 2);
+    BOOST_TEST(query_int(db, "SELECT count(*) FROM artist") == 1);
+    close_for_verify(db);
+}
+
+BOOST_TEST_DECORATOR(
+    *utf::description("get_track() returns data matching what was written"))
+BOOST_AUTO_TEST_CASE(get_track__round_trip__matches)
+{
+    temporary_directory tmp_loc;
+
+    // Create and write a track.
+    onelib::track_info written;
+    written.title = "Round Trip";
+    written.artist = "Test Artist";
+    written.album = "Test Album";
+    written.genre = "Test Genre";
+    written.label = "Test Label";
+    written.key = "Am";
+    written.composer = "Composer Name";
+    written.lyricist = "Lyricist Name";
+    written.bpm = 128.5;
+    written.duration_secs = 300;
+    written.track_number = 5;
+    written.bitrate = 320;
+    written.sample_rate = 44100;
+    written.file_type = 5;
+    written.isrc = "GB-ABC-12-34567";
+    written.year = 2024;
+    written.rating = 4;
+    written.relative_path = "/Contents/Test.flac";
+
+    {
+        auto lib = onelib::onelibrary::create(tmp_loc.temp_dir);
+        auto id = lib.add_track(written);
+        BOOST_TEST(id == 1);
+    }
+
+    // Load and read back.
+    auto lib = onelib::onelibrary::load(tmp_loc.temp_dir);
+    BOOST_TEST(lib.track_count() == 1);
+
+    auto ids = lib.track_ids();
+    BOOST_TEST(ids.size() == 1);
+    BOOST_TEST(ids[0] == 1);
+
+    auto read = lib.get_track(1);
+    BOOST_REQUIRE(read.has_value());
+
+    BOOST_TEST(read->title == written.title);
+    BOOST_TEST(read->artist == written.artist);
+    BOOST_REQUIRE(read->album.has_value());
+    BOOST_TEST(*read->album == *written.album);
+    BOOST_REQUIRE(read->genre.has_value());
+    BOOST_TEST(*read->genre == *written.genre);
+    BOOST_REQUIRE(read->label.has_value());
+    BOOST_TEST(*read->label == *written.label);
+    BOOST_REQUIRE(read->key.has_value());
+    BOOST_TEST(*read->key == *written.key);
+    BOOST_REQUIRE(read->composer.has_value());
+    BOOST_TEST(*read->composer == *written.composer);
+    BOOST_REQUIRE(read->lyricist.has_value());
+    BOOST_TEST(*read->lyricist == *written.lyricist);
+    BOOST_TEST(read->bpm == written.bpm);
+    BOOST_TEST(read->duration_secs == written.duration_secs);
+    BOOST_TEST(read->track_number == written.track_number);
+    BOOST_TEST(read->bitrate == written.bitrate);
+    BOOST_TEST(read->sample_rate == written.sample_rate);
+    BOOST_TEST(read->file_type == written.file_type);
+    BOOST_REQUIRE(read->isrc.has_value());
+    BOOST_TEST(*read->isrc == *written.isrc);
+    BOOST_REQUIRE(read->year.has_value());
+    BOOST_TEST(*read->year == *written.year);
+    BOOST_TEST(read->rating == written.rating);
+    BOOST_TEST(read->relative_path == written.relative_path);
+}
+
+BOOST_TEST_DECORATOR(
+    *utf::description("get_track() with nonexistent id returns nullopt"))
+BOOST_AUTO_TEST_CASE(get_track__nonexistent__nullopt)
+{
+    temporary_directory tmp_loc;
+    auto lib = onelib::onelibrary::create(tmp_loc.temp_dir);
+    BOOST_TEST(!lib.get_track(999).has_value());
+}
+
+BOOST_TEST_DECORATOR(
+    *utf::description("remove_track() removes a track by id"))
+BOOST_AUTO_TEST_CASE(remove_track__existing__removes)
+{
+    temporary_directory tmp_loc;
+    auto lib = onelib::onelibrary::create(tmp_loc.temp_dir);
+
+    onelib::track_info track;
+    track.title = "Doomed";
+    track.artist = "Test Artist";
+    track.relative_path = "/Contents/Doomed.flac";
+    auto id = lib.add_track(track);
+    lib.remove_track(id);
+
+    BOOST_TEST(lib.track_count() == 0);
+    BOOST_TEST(!lib.get_track(id).has_value());
+}
+
+BOOST_TEST_DECORATOR(
+    *utf::description("get_track_by_relative_path() round-trips added tracks"))
+BOOST_AUTO_TEST_CASE(get_track_by_relative_path__existing__returns_track)
+{
+    temporary_directory tmp_loc;
+    auto lib = onelib::onelibrary::create(tmp_loc.temp_dir);
+
+    onelib::track_info track;
+    track.title = "By Path";
+    track.artist = "Test Artist";
+    track.relative_path = "/Contents/ByPath.flac";
+    lib.add_track(track);
+
+    auto read = lib.get_track_by_relative_path("/Contents/ByPath.flac");
+    BOOST_REQUIRE(read.has_value());
+    BOOST_TEST(read->title == track.title);
+    BOOST_TEST(
+        !lib.get_track_by_relative_path("/Contents/Missing.flac")
+             .has_value());
+}

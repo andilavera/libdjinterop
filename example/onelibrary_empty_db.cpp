@@ -21,17 +21,24 @@
 
 namespace onelib = djinterop::onelibrary;
 
-/// Example program that creates an empty OneLibrary database and verifies it.
+/// Example program that loads an existing OneLibrary database and verifies it.
 int main()
 {
     auto dir = "OneLibrary";
 
-    std::cout << "OneLibrary Empty Database Example Program\n" << std::endl;
+    std::cout << "OneLibrary Load Database Example Program" << std::endl;
+    std::cout << std::endl;
 
-    auto library = onelib::onelibrary::create(dir);
+    if (!onelib::onelibrary::exists(dir))
+    {
+        std::cerr << "No OneLibrary database found at " << dir << std::endl;
+        return 1;
+    }
+
+    auto library = onelib::onelibrary::load(dir);
     library.verify();
 
-    std::cout << "Created empty OneLibrary database:" << std::endl;
+    std::cout << "Loaded OneLibrary database:" << std::endl;
     std::cout << "  Path:   " << library.directory() << std::endl;
     std::cout << "  Verified OK" << std::endl;
 

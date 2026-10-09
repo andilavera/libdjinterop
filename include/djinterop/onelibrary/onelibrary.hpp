@@ -38,9 +38,6 @@ constexpr const char* db_version = "1000";
 class DJINTEROP_PUBLIC onelibrary
 {
 public:
-    /// Create a new, empty OneLibrary export at `directory`.
-    static onelibrary create(const std::string& directory);
-
     /// Load an existing OneLibrary export from the given volume root.
     static onelibrary load(const std::string& directory);
 

@@ -88,28 +88,6 @@ void hydrate_database(
 }
 }  // anonymous namespace
 
-onelibrary onelibrary::create(const std::string& directory)
-{
-    if (exists(directory))
-    {
-        throw std::runtime_error{
-            "OneLibrary database already exists at " + directory};
-    }
-
-    auto db_path = fs::path{directory} / k_db_rel_path;
-    auto db = open_db(db_path.string(), /*create=*/true);
-
-    // Create schema on a brand-new encrypted database.
-    djinterop::onelibrary::create(db.connection().get());
-    djinterop::onelibrary::seed(db.connection().get());
-
-    // Checkpoint the WAL.
-    db << "PRAGMA wal_checkpoint(TRUNCATE);";
-
-    auto ctx = std::make_shared<onelibrary_context>(directory, std::move(db));
-    return onelibrary{ctx};
-}
-
 onelibrary onelibrary::create_from_scripts(
     const std::string& directory, const std::string& script_directory)
 {

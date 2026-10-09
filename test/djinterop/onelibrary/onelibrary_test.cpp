@@ -18,8 +18,6 @@
 #define BOOST_TEST_MODULE onelibrary_test
 #include <boost/test/included/unit_test.hpp>
 
-#include <string>
-
 #include <djinterop/djinterop.hpp>
 
 #include "../temporary_directory.hpp"
@@ -27,31 +25,18 @@
 namespace utf = boost::unit_test;
 namespace onelib = djinterop::onelibrary;
 
-BOOST_TEST_DECORATOR(
-    *utf::description("create() throws if database already exists"))
-BOOST_AUTO_TEST_CASE(create__already_exists__throws)
-{
-    temporary_directory tmp_loc;
-    onelib::onelibrary::create(tmp_loc.temp_dir);
-    BOOST_CHECK_THROW(
-        onelib::onelibrary::create(tmp_loc.temp_dir), std::runtime_error);
-}
-
-BOOST_TEST_DECORATOR(*utf::description("exists() returns correct values"))
+BOOST_TEST_DECORATOR(*utf::description("exists() returns false for empty dir"))
 BOOST_AUTO_TEST_CASE(exists__empty_dir__returns_false)
 {
     temporary_directory tmp_loc;
     BOOST_TEST(!onelib::onelibrary::exists(tmp_loc.temp_dir));
-    onelib::onelibrary::create(tmp_loc.temp_dir);
-    BOOST_TEST(onelib::onelibrary::exists(tmp_loc.temp_dir));
 }
 
-BOOST_TEST_DECORATOR(*utf::description("create() creates a db"))
-BOOST_AUTO_TEST_CASE(create__nested_path__creates_dirs)
+BOOST_TEST_DECORATOR(
+    *utf::description("load() throws if database does not exist"))
+BOOST_AUTO_TEST_CASE(load__no_database__throws)
 {
     temporary_directory tmp_loc;
-    auto nested = tmp_loc.temp_dir + "/sub1/sub2/sub3";
-    auto lib = onelib::onelibrary::create(nested);
-    BOOST_TEST(onelib::onelibrary::exists(nested));
-    lib.verify();
+    BOOST_CHECK_THROW(
+        onelib::onelibrary::load(tmp_loc.temp_dir), std::runtime_error);
 }

@@ -334,6 +334,12 @@ void content_table::update(const content_row& row)
         << row.bitrate << row.sampling_rate << row.analysis_path << row.id;
 }
 
+void content_table::remove(int64_t id)
+{
+    context_->db << "DELETE FROM playlist_content WHERE content_id = ?" << id;
+    context_->db << "DELETE FROM content WHERE content_id = ?" << id;
+}
+
 std::optional<content_row> content_table::get(int64_t id) const
 {
     std::optional<content_row> result;

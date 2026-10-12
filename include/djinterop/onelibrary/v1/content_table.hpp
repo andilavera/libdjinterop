@@ -144,6 +144,9 @@ public:
     /// not there already.
     void update(const content_row& row);
 
+    /// Remove a content row.
+    void remove(int64_t id);
+
     /// Fetch one row by its identifier.
     [[nodiscard]] std::optional<content_row> get(int64_t id) const;
 

@@ -17,6 +17,7 @@
 
 #include "database_impl.hpp"
 
+#include <stdexcept>
 #include <utility>
 
 #include <djinterop/exceptions.hpp>
@@ -146,45 +147,59 @@ std::optional<djinterop::playlist> database_impl::root_playlist_by_name(
     return make_playlist(context_, *id);
 }
 
-crate database_impl::create_root_crate(const std::string&)
+crate database_impl::create_root_crate(const std::string& name)
 {
-    read_only();
+    playlist_row row;
+    row.name = name;
+
+    const auto id = playlist_table{context_}.add(row);
+    return make_crate(context_, id);
 }
 
-crate database_impl::create_root_crate_after(const std::string&, const crate&)
+crate database_impl::create_root_crate_after(
+    const std::string& name, const crate&)
 {
-    read_only();
+    return create_root_crate(name);
 }
 
-playlist database_impl::create_root_playlist(const std::string&)
+playlist database_impl::create_root_playlist(const std::string& name)
 {
-    read_only();
+    playlist_row row;
+    row.name = name;
+
+    const auto id = playlist_table{context_}.add(row);
+    return make_playlist(context_, id);
 }
 
 playlist database_impl::create_root_playlist_after(
-    const std::string&, const djinterop::playlist_impl&)
+    const std::string& name, const djinterop::playlist_impl&)
 {
-    read_only();
+    return create_root_playlist(name);
 }
 
-track database_impl::create_track(const track_snapshot&)
+track database_impl::create_track(const track_snapshot& snapshot)
 {
-    read_only();
+    return djinterop::onelibrary::v1::create_track(context_, snapshot);
 }
 
-void database_impl::remove_crate(djinterop::crate)
+void database_impl::remove_crate(djinterop::crate cr)
 {
-    read_only();
+    playlist_table{context_}.remove(cr.id());
 }
 
-void database_impl::remove_playlist(const djinterop::playlist_impl&)
+void database_impl::remove_playlist(const djinterop::playlist_impl& pl_base)
 {
-    read_only();
+    const auto* pl = dynamic_cast<const playlist_impl*>(&pl_base);
+    if (pl == nullptr)
+        throw std::invalid_argument{
+            "Supplied playlist does not belong to this database"};
+
+    playlist_table{context_}.remove(pl->id());
 }
 
-void database_impl::remove_track(djinterop::track)
+void database_impl::remove_track(djinterop::track tr)
 {
-    read_only();
+    content_table{context_}.remove(tr.id());
 }
 
 }  // namespace djinterop::onelibrary::v1

@@ -65,4 +65,7 @@ namespace djinterop::onelibrary::v1
 [[nodiscard]] std::optional<musical_key> parse_musical_key(
     const std::string& name);
 
+/// Write a musical key in the notation rekordbox uses, such as `F#m` or `Bb`.
+[[nodiscard]] std::string to_key_name(musical_key key);
+
 }  // namespace djinterop::onelibrary::v1

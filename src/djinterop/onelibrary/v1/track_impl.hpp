@@ -35,8 +35,9 @@ namespace djinterop::onelibrary::v1
 /// A track in a OneLibrary database.
 ///
 /// Every accessor reads the database afresh rather than caching, so a track
-/// handle stays correct for as long as the row is there.  Support is currently
-/// read-only, and every mutating operation throws.
+/// handle stays correct for as long as the row is there.  The metadata a track
+/// carries is writable; the performance data rekordbox keeps in the ANLZ files
+/// beside it is not, as the database holds none of it.
 class track_impl : public djinterop::track_impl
 {
 public:
@@ -114,5 +115,10 @@ private:
 
 /// Wrap a content row as a track.
 track make_track(std::shared_ptr<onelibrary_context> context, int64_t id);
+
+/// Add a content row for a snapshot and wrap it as a track.
+track create_track(
+    const std::shared_ptr<onelibrary_context>& context,
+    const track_snapshot& snapshot);
 
 }  // namespace djinterop::onelibrary::v1

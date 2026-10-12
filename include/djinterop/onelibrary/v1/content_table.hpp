@@ -132,6 +132,18 @@ class DJINTEROP_PUBLIC content_table
 public:
     explicit content_table(std::shared_ptr<onelibrary_context> context);
 
+    /// Add a content row, assigning its id and resolving its lookups.
+    ///
+    /// A row that names an artist, album, genre, label or key adds any of
+    /// those that are not there already.
+    int64_t add(const content_row& row);
+
+    /// Update a content row, which must carry its id.
+    ///
+    /// As with `add`, lookups the row names are resolved, adding any that are
+    /// not there already.
+    void update(const content_row& row);
+
     /// Fetch one row by its identifier.
     [[nodiscard]] std::optional<content_row> get(int64_t id) const;
 

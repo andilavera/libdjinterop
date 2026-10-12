@@ -245,11 +245,93 @@ std::optional<int64_t> image_id_for(
     return id;
 }
 
+/// Every lookup identifier a row names, each resolved to a row it belongs to.
+struct resolved_lookups
+{
+    std::optional<int64_t> artist_id;
+    std::optional<int64_t> composer_id;
+    std::optional<int64_t> album_id;
+    std::optional<int64_t> genre_id;
+    std::optional<int64_t> label_id;
+    std::optional<int64_t> key_id;
+    std::optional<int64_t> image_id;
+};
+
+/// Resolve every lookup a row names, adding any that are not there already.
+resolved_lookups resolve_lookups(
+    onelibrary_context& context, const content_row& row)
+{
+    const auto artist_id = artist_id_for(context, row.artist);
+    return resolved_lookups{
+        artist_id,
+        artist_id_for(context, row.composer),
+        album_id_for(
+            context, row.album.value_or(std::string{}), artist_id, std::nullopt,
+            std::nullopt, std::nullopt),
+        genre_id_for(context, row.genre),
+        label_id_for(context, row.label),
+        key_id_for(context, row.key),
+        image_id_for(context, row.image_path)};
+}
+
+/// A length as the whole number of seconds the database records.
+std::optional<int64_t> seconds_count(
+    const std::optional<std::chrono::seconds>& length)
+{
+    return length ? std::make_optional(length->count()) : std::nullopt;
+}
+
 }  // anonymous namespace
 
 content_table::content_table(std::shared_ptr<onelibrary_context> context) :
     context_{std::move(context)}
 {
+}
+
+int64_t content_table::add(const content_row& row)
+{
+    int64_t id = 0;
+    context_->db << "SELECT COALESCE(MAX(content_id), 0) + 1 FROM content" >>
+        id;
+
+    const auto lookups = resolve_lookups(*context_, row);
+
+    context_->db
+        << "INSERT INTO content "
+           "(content_id, title, artist_id_artist, artist_id_composer, "
+           "album_id, genre_id, label_id, key_id, color_id, image_id, "
+           "djComment, bpmx100, length, trackNo, releaseYear, rating, path, "
+           "fileSize, bitrate, samplingRate, analysisDataFilePath) "
+           "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, "
+           "?, ?)"
+        << id << row.title << lookups.artist_id << lookups.composer_id
+        << lookups.album_id << lookups.genre_id << lookups.label_id
+        << lookups.key_id << row.color_id << lookups.image_id << row.comment
+        << row.bpm_x100 << seconds_count(row.length) << row.track_number
+        << row.release_year << row.rating_stars << row.path << row.file_size
+        << row.bitrate << row.sampling_rate << row.analysis_path;
+
+    return id;
+}
+
+void content_table::update(const content_row& row)
+{
+    const auto lookups = resolve_lookups(*context_, row);
+
+    context_->db
+        << "UPDATE content SET title = ?, artist_id_artist = ?, "
+           "artist_id_composer = ?, album_id = ?, genre_id = ?, label_id = ?, "
+           "key_id = ?, color_id = ?, image_id = ?, djComment = ?, "
+           "bpmx100 = ?, length = ?, "
+           "trackNo = ?, releaseYear = ?, rating = ?, path = ?, fileSize = ?, "
+           "bitrate = ?, samplingRate = ?, analysisDataFilePath = ? "
+           "WHERE content_id = ?"
+        << row.title << lookups.artist_id << lookups.composer_id
+        << lookups.album_id << lookups.genre_id << lookups.label_id
+        << lookups.key_id << row.color_id << lookups.image_id << row.comment
+        << row.bpm_x100 << seconds_count(row.length) << row.track_number
+        << row.release_year << row.rating_stars << row.path << row.file_size
+        << row.bitrate << row.sampling_rate << row.analysis_path << row.id;
 }
 
 std::optional<content_row> content_table::get(int64_t id) const

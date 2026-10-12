@@ -108,6 +108,41 @@ std::optional<musical_key> parse_musical_key(const std::string& name)
     return std::nullopt;
 }
 
+std::string to_key_name(musical_key key)
+{
+    // The names rekordbox writes, which prefer a sharp for the sharp keys and
+    // a flat for the flat ones, and append `m` for a minor.
+    switch (key)
+    {
+        case musical_key::c_major: return "C";
+        case musical_key::a_minor: return "Am";
+        case musical_key::g_major: return "G";
+        case musical_key::e_minor: return "Em";
+        case musical_key::d_major: return "D";
+        case musical_key::b_minor: return "Bm";
+        case musical_key::a_major: return "A";
+        case musical_key::f_sharp_minor: return "F#m";
+        case musical_key::e_major: return "E";
+        case musical_key::d_flat_minor: return "Dbm";
+        case musical_key::b_major: return "B";
+        case musical_key::a_flat_minor: return "Abm";
+        case musical_key::f_sharp_major: return "F#";
+        case musical_key::e_flat_minor: return "Ebm";
+        case musical_key::d_flat_major: return "Db";
+        case musical_key::b_flat_minor: return "Bbm";
+        case musical_key::a_flat_major: return "Ab";
+        case musical_key::f_minor: return "Fm";
+        case musical_key::e_flat_major: return "Eb";
+        case musical_key::c_minor: return "Cm";
+        case musical_key::b_flat_major: return "Bb";
+        case musical_key::g_minor: return "Gm";
+        case musical_key::f_major: return "F";
+        case musical_key::d_minor: return "Dm";
+    }
+
+    return {};
+}
+
 std::optional<double> to_bpm(std::optional<int64_t> bpm_x100)
 {
     if (!bpm_x100 || *bpm_x100 <= 0)

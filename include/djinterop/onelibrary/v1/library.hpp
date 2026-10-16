@@ -60,6 +60,14 @@ public:
         const std::string& path,
         const std::string& passphrase);
 
+    /// Create a new, empty database, as `create_database` does, and load it.
+    ///
+    /// \param directory Root directory of the device to create.
+    /// \param passphrase Passphrase with which to encrypt the database.
+    [[nodiscard]] static library create(
+        const std::string& directory,
+        const std::string& passphrase);
+
     /// Create a new database from an SQL script, as
     /// `create_database_from_scripts` does, and load it.
     ///

@@ -67,6 +67,18 @@ bool DJINTEROP_PUBLIC database_exists(const std::string& path);
 database DJINTEROP_PUBLIC load_database(
     const std::string& path, const std::string& passphrase);
 
+/// Create a new, empty OneLibrary database, and load it.
+///
+/// \param directory Root directory of the device to create.
+/// \param passphrase Passphrase with which to encrypt the database.
+/// \return Returns the created database.
+/// \throws database_inconsistency If a database already exists in `directory`.
+/// \throws unsupported_database If this build of libdjinterop cannot write an
+///                              encrypted database.
+database DJINTEROP_PUBLIC create_database(
+    const std::string& directory,
+    const std::string& passphrase);
+
 /// Create a new database from an SQL script, and load it.
 ///
 /// The directory indicated by `script_directory` is expected to contain a file
@@ -78,6 +90,7 @@ database DJINTEROP_PUBLIC load_database(
 /// \param script_directory Directory containing the script.
 /// \param passphrase Passphrase with which to encrypt the database.
 /// \return Returns the created database.
+/// \throws database_inconsistency If a database already exists in `directory`.
 /// \throws unsupported_database If this build of libdjinterop cannot write an
 ///                              encrypted database.
 database DJINTEROP_PUBLIC create_database_from_scripts(

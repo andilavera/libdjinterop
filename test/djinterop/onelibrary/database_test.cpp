@@ -669,5 +669,5 @@ BOOST_AUTO_TEST_CASE(create_database_from_scripts__an_existing_one__throws)
     BOOST_CHECK_THROW(
         ol::create_database_from_scripts(
             device, onelibrary_v1_script_directory(), passphrase),
-        std::runtime_error);
+        djinterop::database_inconsistency);
 }

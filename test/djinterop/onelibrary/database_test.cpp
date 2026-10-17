@@ -440,14 +440,14 @@ BOOST_AUTO_TEST_CASE(verify__a_database_missing_its_tables__is_rejected)
         djinterop::database_inconsistency);
 }
 
-BOOST_TEST_DECORATOR(
-    *utf::description("verify() rejects a database missing the key table"))
-BOOST_AUTO_TEST_CASE(verify__a_database_missing_the_key_table__is_rejected)
+BOOST_TEST_DECORATOR(*utf::description(
+    "verify() rejects a database missing an index"))
+BOOST_AUTO_TEST_CASE(verify__a_database_missing_an_index__is_rejected)
 {
-    // Tracks are read joined to `key`, so it is as necessary as the others.
     temporary_directory temp_dir;
     const auto scripts = temp_dir.temp_dir + "/scripts";
-    write_script_on_schema(scripts, {"DROP TABLE \"key\";"});
+    write_script_on_schema(
+        scripts, {"DROP INDEX index_playlist_content_playlist_id;"});
 
     BOOST_CHECK_THROW(
         ol::create_database_from_scripts(

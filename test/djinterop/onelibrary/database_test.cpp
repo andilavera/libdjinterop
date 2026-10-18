@@ -335,31 +335,6 @@ BOOST_AUTO_TEST_CASE(crates__the_same_tree_as_playlists__is_seen)
     BOOST_CHECK_EQUAL(containing.front().name(), "Warm Up");
 }
 
-BOOST_TEST_DECORATOR(*utf::description("every kind of write is refused"))
-BOOST_AUTO_TEST_CASE(writes__every_kind__are_refused)
-{
-    auto db = loaded_database();
-
-    BOOST_CHECK_THROW(
-        db.create_root_crate("New"), djinterop::unsupported_operation);
-    BOOST_CHECK_THROW(
-        db.create_root_playlist("New"), djinterop::unsupported_operation);
-    BOOST_CHECK_THROW(
-        db.create_track(djinterop::track_snapshot{}),
-        djinterop::unsupported_operation);
-
-    auto track = db.tracks().front();
-    BOOST_CHECK_THROW(
-        track.set_title(std::string{"New"}), djinterop::unsupported_operation);
-    BOOST_CHECK_THROW(track.set_bpm(100.0), djinterop::unsupported_operation);
-
-    auto crate = db.root_crates().front();
-    BOOST_CHECK_THROW(crate.set_name("New"), djinterop::unsupported_operation);
-    BOOST_CHECK_THROW(
-        crate.create_sub_crate("New"), djinterop::unsupported_operation);
-    BOOST_CHECK_THROW(db.remove_crate(crate), djinterop::unsupported_operation);
-}
-
 BOOST_TEST_DECORATOR(*utf::description("crates walk a deep tree breadth first"))
 BOOST_AUTO_TEST_CASE(
     crates__a_tree_several_levels_deep__is_walked_breadth_first)

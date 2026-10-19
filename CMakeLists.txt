@@ -241,6 +241,7 @@ add_library(
     src/djinterop/onelibrary/schema.cpp
     src/djinterop/onelibrary/anlz/hash.cpp
     src/djinterop/onelibrary/anlz/convert.cpp
+    src/djinterop/onelibrary/anlz/tag_writers.cpp
 )
 
 # Encrypted OneLibrary databases are opened with SQLCipher, where the build has

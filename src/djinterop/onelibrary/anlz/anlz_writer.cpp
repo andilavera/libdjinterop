@@ -65,9 +65,11 @@ void write_anlz_files(
         tags.push_back(
             make_tag("PWV2", 20, build_pwv2_payload(track.waveform)));
 
-        // PCOB: empty hot + memory containers.
-        tags.push_back(make_tag("PCOB", 24, build_empty_pcob_payload(1)));
-        tags.push_back(make_tag("PCOB", 24, build_empty_pcob_payload(0)));
+        // Empty containers are produced by the builders themselves.
+        tags.push_back(
+            make_tag("PCOB", 24, build_pcob_payload(track.hot_cues, sr)));
+        tags.push_back(
+            make_tag("PCOB", 24, build_pcob_payload(track.loops, sr)));
 
         write_pmai_file((dir / "ANLZ0000.DAT").string(), tags);
     }

@@ -46,6 +46,14 @@ struct anlz_track_data
     /// When empty, an empty beat grid is written.
     std::vector<beatgrid_marker> beatgrid;
 
+    /// Hot cues (label, sample_offset, colour).
+    /// Indices correspond to hot cue slots 0-7.
+    std::vector<std::optional<hot_cue>> hot_cues;
+
+    /// Loops (label, start/end sample_offset, colour).
+    /// Indices correspond to loop slots 0-7.
+    std::vector<std::optional<loop>> loops;
+
     /// Waveform data (low/mid/high bands per entry).
     std::vector<waveform_entry> waveform;
 

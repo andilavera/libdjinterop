@@ -1450,6 +1450,16 @@ BOOST_AUTO_TEST_CASE(read_ppth__round_trip__matches)
 }
 
 BOOST_TEST_DECORATOR(
+    *utf::description("build_ppth_payload() encodes astral characters"))
+BOOST_AUTO_TEST_CASE(build_ppth_payload__astral_character__round_trips)
+{
+    // U+1F3B5 (musical note) needs a UTF-16 surrogate pair.
+    const std::string path = "/Contents/\xF0\x9F\x8E\xB5.flac";
+
+    BOOST_TEST(anlz::read_ppth(anlz_w::build_ppth_payload(path)) == path);
+}
+
+BOOST_TEST_DECORATOR(
     *utf::description("parse_pmai() parses djay Pro reference .EXT file"))
 BOOST_AUTO_TEST_CASE(parse_pmai__djay_ext__correct_tags)
 {
@@ -1487,7 +1497,7 @@ BOOST_AUTO_TEST_CASE(parse_pmai__djay_dat_ppth__correct_path)
         source_root + "PIONEER_DJAY_ONE/USBANLZ/P039/000272B9/ANLZ0000.DAT");
 
     BOOST_REQUIRE_EQUAL(tags[0].id, "PPTH");
-    BOOST_TEST(tags[0].is_ppth);
+    BOOST_TEST(tags[0].len_header == 16);
 
     // PPTH payload is UTF-16BE path. The djay export uses:
     // /Contents/Charli xcx feat Robyn & Yung Lean/Brat and it's completely

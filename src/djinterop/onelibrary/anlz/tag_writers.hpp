@@ -31,10 +31,6 @@ namespace djinterop::onelibrary::anlz
 /// with a mandatory trailing U+0000 (2 bytes).
 std::vector<uint8_t> build_ppth_payload(const std::string& utf8_path);
 
-/// Build an empty PCOB container (memory or hot).
-/// container_type: 0 = memory, 1 = hot.
-std::vector<uint8_t> build_empty_pcob_payload(uint32_t container_type);
-
 /// Build a PCOB container with hot cue entries.
 /// container_type: 1 = hot cues. Indices map to hot cue slots 0-7.
 std::vector<uint8_t> build_pcob_payload(

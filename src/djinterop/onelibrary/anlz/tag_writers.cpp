@@ -21,36 +21,11 @@
 #include <cmath>
 
 #include "convert.hpp"
-#include "pmai_writer.hpp"
+#include "format.hpp"
+#include "utf.hpp"
 
 namespace djinterop::onelibrary::anlz
 {
-
-namespace
-{
-// Decode UTF-8 code points (same as hash.cpp).
-uint32_t next_code_point(const char*& it, const char* end)
-{
-    if (it >= end) return 0;
-    unsigned char c = static_cast<unsigned char>(*it);
-    if (c < 0x80) { ++it; return c; }
-    if (c < 0xC0) { ++it; return 0; }
-    if (c < 0xE0) {
-        if (it + 1 >= end) { ++it; return 0; }
-        uint32_t cp = ((c & 0x1Fu) << 6) | (static_cast<unsigned char>(it[1]) & 0x3Fu);
-        it += 2; return cp;
-    }
-    if (c < 0xF0) {
-        if (it + 2 >= end) { ++it; return 0; }
-        uint32_t cp = ((c & 0x0Fu) << 12) | ((static_cast<unsigned char>(it[1]) & 0x3Fu) << 6) | (static_cast<unsigned char>(it[2]) & 0x3Fu);
-        it += 3; return cp;
-    }
-    if (it + 3 >= end) { ++it; return 0; }
-    uint32_t cp = ((c & 0x07u) << 18) | ((static_cast<unsigned char>(it[1]) & 0x3Fu) << 12) | ((static_cast<unsigned char>(it[2]) & 0x3Fu) << 6) | (static_cast<unsigned char>(it[3]) & 0x3Fu);
-    it += 4; return cp;
-}
-
-}  // anonymous namespace
 
 // =========================================================================
 // PPTH
@@ -58,32 +33,12 @@ uint32_t next_code_point(const char*& it, const char* end)
 
 std::vector<uint8_t> build_ppth_payload(const std::string& utf8_path)
 {
-    size_t num_chars = 0;
-    const char* it = utf8_path.data();
-    const char* end = it + utf8_path.size();
-    while (it < end)
-    {
-        unsigned char c = static_cast<unsigned char>(*it);
-        if (c < 0x80) ++it;
-        else if (c < 0xC0) ++it;
-        else if (c < 0xE0) it += 2;
-        else if (c < 0xF0) it += 3;
-        else it += 4;
-        ++num_chars;
-    }
+    const auto units = utf::to_utf16(utf8_path);
 
-    size_t path_len = (num_chars + 1) * 2;
-    std::vector<uint8_t> payload(path_len, 0);
-
-    it = utf8_path.data();
-    end = utf8_path.data() + utf8_path.size();
-    size_t out = 0;
-    while (it < end && out + 1 < path_len)
-    {
-        uint32_t cp = next_code_point(it, end) & 0xFFFF;
-        write_u16_be(payload, out, static_cast<uint16_t>(cp));
-        out += 2;
-    }
+    // Trailing NUL terminator is mandatory.
+    std::vector<uint8_t> payload((units.size() + 1) * 2, 0);
+    for (size_t i = 0; i < units.size(); ++i)
+        write_u16_be(payload, i * 2, units[i]);
 
     return payload;
 }
@@ -91,15 +46,6 @@ std::vector<uint8_t> build_ppth_payload(const std::string& utf8_path)
 // =========================================================================
 // PCOB
 // =========================================================================
-
-std::vector<uint8_t> build_empty_pcob_payload(uint32_t container_type)
-{
-    std::vector<uint8_t> payload(12, 0);
-    write_u32_be(payload, 0, container_type);
-    write_u32_be(payload, 4, 0);
-    write_u32_be(payload, 8, 0xFFFFFFFF);
-    return payload;
-}
 
 namespace
 {
@@ -217,13 +163,17 @@ std::vector<uint8_t> build_pqtz_payload(
 
 // =========================================================================
 // PVBR — VBR seek table (zeros for lossless)
-//   u1(4) + 400 × idx(4) + u2(4) = 1608 bytes
+//   u1(4) + 400 × idx(4) + u2(4)
 // =========================================================================
+
+namespace
+{
+constexpr size_t pvbr_index_count = 400;
+}
 
 std::vector<uint8_t> build_pvbr_payload()
 {
-    // 4 + 1600 + 4 = 1608
-    return std::vector<uint8_t>(1608, 0);
+    return std::vector<uint8_t>(4 + pvbr_index_count * 4 + 4, 0);
 }
 
 // =========================================================================
@@ -232,22 +182,46 @@ std::vector<uint8_t> build_pvbr_payload()
 //   Each byte: [whiteness:3][height:5]
 // =========================================================================
 
+namespace
+{
+constexpr size_t pwav_columns = 1200;
+constexpr size_t pwv2_columns = 100;
+constexpr size_t pwv4_columns = 1200;
+constexpr size_t pwv6_columns = 1200;
+
+size_t column_count(
+    const std::vector<waveform_entry>& waveform, size_t max_columns)
+{
+    return waveform.empty() ? 0 : std::min(waveform.size(), max_columns);
+}
+
+size_t source_index(size_t source_size, size_t columns, size_t i)
+{
+    return source_size * i / columns;
+}
+
+template <typename ToByte>
+std::vector<uint8_t> build_mono_preview(
+    const std::vector<waveform_entry>& waveform, size_t max_columns,
+    ToByte to_byte)
+{
+    const size_t columns = column_count(waveform, max_columns);
+    std::vector<uint8_t> payload(8 + columns, 0);
+    write_u32_be(payload, 0, static_cast<uint32_t>(columns));
+    write_u32_be(payload, 4, 0x00010000);
+
+    for (size_t i = 0; i < columns; ++i)
+        payload[8 + i] =
+            to_byte(waveform[source_index(waveform.size(), columns, i)]);
+
+    return payload;
+}
+}  // anonymous namespace
+
 std::vector<uint8_t> build_pwav_payload(
     const std::vector<waveform_entry>& waveform)
 {
-    uint32_t count = waveform.empty() ? 0
-        : static_cast<uint32_t>(std::min(waveform.size(), size_t{1200}));
-
-    std::vector<uint8_t> payload(8 + count, 0);
-    write_u32_be(payload, 0, count);
-    write_u32_be(payload, 4, 0x00010000);
-
-    for (uint32_t i = 0; i < count; ++i)
-    {
-        size_t src = waveform.size() * i / count;
-        payload[8 + i] = convert::to_pwav_byte(waveform[src]);
-    }
-    return payload;
+    return build_mono_preview(waveform, pwav_columns, convert::to_pwav_byte);
 }
 
 // =========================================================================
@@ -259,23 +233,11 @@ std::vector<uint8_t> build_pwav_payload(
 std::vector<uint8_t> build_pwv2_payload(
     const std::vector<waveform_entry>& waveform)
 {
-    uint32_t count = waveform.empty() ? 0
-        : static_cast<uint32_t>(std::min(waveform.size(), size_t{100}));
-
-    std::vector<uint8_t> payload(8 + count, 0);
-    write_u32_be(payload, 0, count);
-    write_u32_be(payload, 4, 0x00010000);
-
-    for (uint32_t i = 0; i < count; ++i)
-    {
-        size_t src = waveform.size() * i / count;
-        payload[8 + i] = convert::to_pwv2_byte(waveform[src]);
-    }
-    return payload;
+    return build_mono_preview(waveform, pwv2_columns, convert::to_pwv2_byte);
 }
 
 // =========================================================================
-// PWV3 — colour waveform scroll (1 byte/entry)
+// PWV3 — mono waveform detail (1 byte/entry)
 //   len_entry_bytes=1(4) + len_entries(4) + 0x00960000(4) + data(len_entries)
 //   Each byte: [colour:3][height:5]
 // =========================================================================
@@ -306,18 +268,16 @@ std::vector<uint8_t> build_pwv3_payload(
 std::vector<uint8_t> build_pwv4_payload(
     const std::vector<waveform_entry>& waveform)
 {
-    uint32_t count = waveform.empty() ? 0
-        : static_cast<uint32_t>(std::min(waveform.size(), size_t{1200}));
-    size_t data_size = count * 6;
+    const size_t columns = column_count(waveform, pwv4_columns);
 
-    std::vector<uint8_t> payload(12 + data_size, 0);
+    std::vector<uint8_t> payload(12 + columns * 6, 0);
     write_u32_be(payload, 0, 6);
-    write_u32_be(payload, 4, count);
+    write_u32_be(payload, 4, static_cast<uint32_t>(columns));
 
-    for (uint32_t i = 0; i < count; ++i)
+    for (size_t i = 0; i < columns; ++i)
     {
-        size_t src = waveform.size() * i / count;
-        auto e = convert::to_pwv4_entry(waveform[src]);
+        auto e = convert::to_pwv4_entry(
+            waveform[source_index(waveform.size(), columns, i)]);
         size_t off = 12 + i * 6;
         payload[off] = e.ch;
         payload[off + 1] = e.luminance;
@@ -362,18 +322,16 @@ std::vector<uint8_t> build_pwv5_payload(
 std::vector<uint8_t> build_pwv6_payload(
     const std::vector<waveform_entry>& waveform)
 {
-    uint32_t count = waveform.empty() ? 0
-        : static_cast<uint32_t>(std::min(waveform.size(), size_t{1200}));
-    size_t data_size = count * 3;
+    const size_t columns = column_count(waveform, pwv6_columns);
 
-    std::vector<uint8_t> payload(8 + data_size, 0);
+    std::vector<uint8_t> payload(8 + columns * 3, 0);
     write_u32_be(payload, 0, 3);
-    write_u32_be(payload, 4, count);
+    write_u32_be(payload, 4, static_cast<uint32_t>(columns));
 
-    for (uint32_t i = 0; i < count; ++i)
+    for (size_t i = 0; i < columns; ++i)
     {
-        size_t src = waveform.size() * i / count;
-        auto e = convert::to_pwv67_entry(waveform[src]);
+        auto e = convert::to_pwv67_entry(
+            waveform[source_index(waveform.size(), columns, i)]);
         size_t off = 8 + i * 3;
         payload[off] = e.mid;
         payload[off + 1] = e.high;
